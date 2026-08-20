@@ -1,0 +1,103 @@
+# Дамп операторов conv1d.tflite (факт сериализации, Д3 недели 1)
+
+op[0] EXPAND_DIMS
+  in  #0 serving_default_keras_tensor:0 shape=[np.int32(1), np.int32(128), np.int32(1)] dtype=<class 'numpy.int8'>, scale=0.012819952331483364, zp=1
+  in  #1 arith.constant4 shape=[] dtype=<class 'numpy.int32'>
+  out #15 sequential_1/conv1d_1/convolution/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(128), np.int32(1)] dtype=<class 'numpy.int8'>, scale=0.012819952331483364, zp=1
+op[1] CONV_2D
+  in  #15 sequential_1/conv1d_1/convolution/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(128), np.int32(1)] dtype=<class 'numpy.int8'>, scale=0.012819952331483364, zp=1
+  in  #14 sequential_1/conv1d_1/convolution shape=[np.int32(8), np.int32(1), np.int32(3), np.int32(1)] dtype=<class 'numpy.int8'>
+  in  #13 arith.constant shape=[np.int32(8)] dtype=<class 'numpy.int32'>
+  out #16 sequential_1/re_lu_1/Relu;sequential_1/conv1d_1/convolution/Squeeze;sequential_1/conv1d_1/convolution shape=[np.int32(1), np.int32(1), np.int32(126), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[2] RESHAPE
+  in  #16 sequential_1/re_lu_1/Relu;sequential_1/conv1d_1/convolution/Squeeze;sequential_1/conv1d_1/convolution shape=[np.int32(1), np.int32(1), np.int32(126), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  in  #2 sequential_1/re_lu_1/Relu;sequential_1/conv1d_1/convolution/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  out #17 sequential_1/re_lu_1/Relu;sequential_1/conv1d_1/convolution/Squeeze1 shape=[np.int32(1), np.int32(126), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[3] EXPAND_DIMS
+  in  #17 sequential_1/re_lu_1/Relu;sequential_1/conv1d_1/convolution/Squeeze1 shape=[np.int32(1), np.int32(126), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  in  #3 arith.constant3 shape=[] dtype=<class 'numpy.int32'>
+  out #18 sequential_1/average_pooling1d_1/AvgPool1D/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(126), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[4] AVERAGE_POOL_2D
+  in  #18 sequential_1/average_pooling1d_1/AvgPool1D/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(126), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  out #19 sequential_1/average_pooling1d_1/AvgPool1D shape=[np.int32(1), np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[5] RESHAPE
+  in  #19 sequential_1/average_pooling1d_1/AvgPool1D shape=[np.int32(1), np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  in  #4 sequential_1/average_pooling1d_1/AvgPool1D/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  out #20 sequential_1/average_pooling1d_1/AvgPool1D/Squeeze1 shape=[np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[6] EXPAND_DIMS
+  in  #20 sequential_1/average_pooling1d_1/AvgPool1D/Squeeze1 shape=[np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  in  #1 arith.constant4 shape=[] dtype=<class 'numpy.int32'>
+  out #21 sequential_1/conv1d_1_2/convolution/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[7] CONV_2D
+  in  #21 sequential_1/conv1d_1_2/convolution/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  in  #12 sequential_1/conv1d_1_2/convolution shape=[np.int32(16), np.int32(1), np.int32(3), np.int32(8)] dtype=<class 'numpy.int8'>
+  in  #11 arith.constant1 shape=[np.int32(16)] dtype=<class 'numpy.int32'>
+  out #22 sequential_1/re_lu_1_2/Relu;sequential_1/conv1d_1_2/convolution/Squeeze;sequential_1/conv1d_1_2/convolution shape=[np.int32(1), np.int32(1), np.int32(61), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[8] RESHAPE
+  in  #22 sequential_1/re_lu_1_2/Relu;sequential_1/conv1d_1_2/convolution/Squeeze;sequential_1/conv1d_1_2/convolution shape=[np.int32(1), np.int32(1), np.int32(61), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  in  #5 sequential_1/re_lu_1_2/Relu;sequential_1/conv1d_1_2/convolution/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  out #23 sequential_1/re_lu_1_2/Relu;sequential_1/conv1d_1_2/convolution/Squeeze1 shape=[np.int32(1), np.int32(61), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[9] EXPAND_DIMS
+  in  #23 sequential_1/re_lu_1_2/Relu;sequential_1/conv1d_1_2/convolution/Squeeze1 shape=[np.int32(1), np.int32(61), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  in  #3 arith.constant3 shape=[] dtype=<class 'numpy.int32'>
+  out #24 sequential_1/average_pooling1d_1_2/AvgPool1D/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(61), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[10] AVERAGE_POOL_2D
+  in  #24 sequential_1/average_pooling1d_1_2/AvgPool1D/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(61), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  out #25 sequential_1/average_pooling1d_1_2/AvgPool1D shape=[np.int32(1), np.int32(1), np.int32(30), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[11] RESHAPE
+  in  #25 sequential_1/average_pooling1d_1_2/AvgPool1D shape=[np.int32(1), np.int32(1), np.int32(30), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  in  #6 sequential_1/average_pooling1d_1_2/AvgPool1D/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  out #26 sequential_1/average_pooling1d_1_2/AvgPool1D/Squeeze1 shape=[np.int32(1), np.int32(30), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[12] SHAPE
+  in  #26 sequential_1/average_pooling1d_1_2/AvgPool1D/Squeeze1 shape=[np.int32(1), np.int32(30), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  out #27 sequential_1/flatten_1/Shape shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+op[13] STRIDED_SLICE
+  in  #27 sequential_1/flatten_1/Shape shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  in  #7 sequential_1/flatten_1/strided_slice/stack shape=[np.int32(1)] dtype=<class 'numpy.int32'>
+  in  #8 arith.constant2 shape=[np.int32(1)] dtype=<class 'numpy.int32'>
+  in  #8 arith.constant2 shape=[np.int32(1)] dtype=<class 'numpy.int32'>
+  out #28 sequential_1/flatten_1/strided_slice shape=[] dtype=<class 'numpy.int32'>
+op[14] PACK
+  in  #28 sequential_1/flatten_1/strided_slice shape=[] dtype=<class 'numpy.int32'>
+  in  #9 sequential_1/flatten_1/Reshape/shape/1 shape=[] dtype=<class 'numpy.int32'>
+  out #29 sequential_1/flatten_1/Reshape/shape shape=[np.int32(2)] dtype=<class 'numpy.int32'>
+op[15] RESHAPE
+  in  #25 sequential_1/average_pooling1d_1_2/AvgPool1D shape=[np.int32(1), np.int32(1), np.int32(30), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  in  #29 sequential_1/flatten_1/Reshape/shape shape=[np.int32(2)] dtype=<class 'numpy.int32'>
+  out #30 sequential_1/flatten_1/Reshape shape=[np.int32(1), np.int32(480)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[16] FULLY_CONNECTED
+  in  #30 sequential_1/flatten_1/Reshape shape=[np.int32(1), np.int32(480)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  in  #10 sequential_1/dense_1/MatMul1 shape=[np.int32(4), np.int32(480)] dtype=<class 'numpy.int8'>
+  in  #-1 (optional/none)
+  out #31 sequential_1/dense_1/MatMul2 shape=[np.int32(1), np.int32(4)] dtype=<class 'numpy.int8'>, scale=0.0024239737540483475, zp=-40
+op[17] SOFTMAX
+  in  #31 sequential_1/dense_1/MatMul2 shape=[np.int32(1), np.int32(4)] dtype=<class 'numpy.int8'>, scale=0.0024239737540483475, zp=-40
+  out #32 StatefulPartitionedCall_1:0 shape=[np.int32(1), np.int32(4)] dtype=<class 'numpy.int8'>, scale=0.00390625, zp=-128
+op[18] DELEGATE
+  in  #2 sequential_1/re_lu_1/Relu;sequential_1/conv1d_1/convolution/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  in  #13 arith.constant shape=[np.int32(8)] dtype=<class 'numpy.int32'>
+  in  #14 sequential_1/conv1d_1/convolution shape=[np.int32(8), np.int32(1), np.int32(3), np.int32(1)] dtype=<class 'numpy.int8'>
+  in  #15 sequential_1/conv1d_1/convolution/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(128), np.int32(1)] dtype=<class 'numpy.int8'>, scale=0.012819952331483364, zp=1
+  out #17 sequential_1/re_lu_1/Relu;sequential_1/conv1d_1/convolution/Squeeze1 shape=[np.int32(1), np.int32(126), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[19] DELEGATE
+  in  #4 sequential_1/average_pooling1d_1/AvgPool1D/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  in  #19 sequential_1/average_pooling1d_1/AvgPool1D shape=[np.int32(1), np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  out #20 sequential_1/average_pooling1d_1/AvgPool1D/Squeeze1 shape=[np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+op[20] DELEGATE
+  in  #5 sequential_1/re_lu_1_2/Relu;sequential_1/conv1d_1_2/convolution/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  in  #11 arith.constant1 shape=[np.int32(16)] dtype=<class 'numpy.int32'>
+  in  #12 sequential_1/conv1d_1_2/convolution shape=[np.int32(16), np.int32(1), np.int32(3), np.int32(8)] dtype=<class 'numpy.int8'>
+  in  #21 sequential_1/conv1d_1_2/convolution/ExpandDims shape=[np.int32(1), np.int32(1), np.int32(63), np.int32(8)] dtype=<class 'numpy.int8'>, scale=0.004138599615544081, zp=-128
+  out #23 sequential_1/re_lu_1_2/Relu;sequential_1/conv1d_1_2/convolution/Squeeze1 shape=[np.int32(1), np.int32(61), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[21] DELEGATE
+  in  #6 sequential_1/average_pooling1d_1_2/AvgPool1D/Squeeze shape=[np.int32(3)] dtype=<class 'numpy.int32'>
+  in  #25 sequential_1/average_pooling1d_1_2/AvgPool1D shape=[np.int32(1), np.int32(1), np.int32(30), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  out #26 sequential_1/average_pooling1d_1_2/AvgPool1D/Squeeze1 shape=[np.int32(1), np.int32(30), np.int32(16)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+op[22] DELEGATE
+  in  #10 sequential_1/dense_1/MatMul1 shape=[np.int32(4), np.int32(480)] dtype=<class 'numpy.int8'>
+  in  #30 sequential_1/flatten_1/Reshape shape=[np.int32(1), np.int32(480)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
+  out #31 sequential_1/dense_1/MatMul2 shape=[np.int32(1), np.int32(4)] dtype=<class 'numpy.int8'>, scale=0.0024239737540483475, zp=-40
+
+# Глобальные вход/выход subgraph
+  input  #0 serving_default_keras_tensor:0 shape=[np.int32(1), np.int32(128), np.int32(1)] dtype=<class 'numpy.int8'>, scale=0.012819952331483364, zp=1
+  output #32 StatefulPartitionedCall_1:0 shape=[np.int32(1), np.int32(4)] dtype=<class 'numpy.int8'>, scale=0.00390625, zp=-128

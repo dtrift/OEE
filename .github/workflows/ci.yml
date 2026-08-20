@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # Workspace OEE: line-simulator, nodes, oee-aggregator, features-cli.
+  # Подмодуль форка для сборки workspace не нужен (path-зависимости появятся в неделе 3).
+  workspace:
+    runs-on: ubuntu-latest
+    steps:
+      # v6 использует Node.js 24 (избегает deprecation Node 20 на GitHub-раннерах)
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.96.1
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2.9.1
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+        # Включает интеграционный тест детерминизма симулятора (два прогона → diff пуст).
+
+  # Форк microflow-rs: сборка, тесты, примеры #[model] на хосте.
+  # Отдельный job: свой workspace, свои зависимости (nalgebra через git-pатч).
+  fork:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fork/microflow
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.96.1
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: fork/microflow
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      # mismatched_lifetime_syntaxes — известный warn в сгенерированном
+      # апстримом tflite_generated.rs (линт нового rustc); остальное — строго.
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings -A mismatched_lifetime_syntaxes
+
+      - name: Tests
+        run: cargo test --release
+
+      # Функциональный смоук: predict() на хосте (гейт недели 1).
+      - name: Run examples (sine, dense_spike)
+        run: |
+          cargo run --release --example sine
+          cargo run --release --example dense_spike
