@@ -1,2 +1,5 @@
 kontext/
 tmp/
+target/
+run*.csv
+*.tflite.tmp

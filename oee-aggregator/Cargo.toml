@@ -1,0 +1,9 @@
+[package]
+name = "oee-aggregator"
+description = "Подписка на MQTT, формула OEE = A x P x Q, публикация для дашборда (неделя 5)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]

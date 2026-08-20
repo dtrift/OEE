@@ -1,0 +1,9 @@
+[package]
+name = "features-cli"
+description = "Единый Rust-код фич для обучения (экспорт) и инференса: feature parity по построению (недели 3-4)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]

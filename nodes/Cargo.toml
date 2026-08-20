@@ -1,0 +1,9 @@
+[package]
+name = "nodes"
+description = "Узлы A/P/Q: приём данных, feature-extraction, инференс, публикация (недели 4-5)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
