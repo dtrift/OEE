@@ -1,0 +1,3 @@
+[submodule "fork/microflow"]
+	path = fork/microflow
+	url = https://github.com/dtrift/microflow-rs.git
