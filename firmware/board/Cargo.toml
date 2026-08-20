@@ -1,0 +1,7 @@
+[package]
+name = "board"
+description = "Пины стенда ESP32-S3-DevKitC-1: единый источник истины для прошивок узлов"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
