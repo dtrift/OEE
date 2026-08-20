@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["board", "a", "q", "p"]
+
+# Отдельный workspace от корневого OEE (прецедент: fork/microflow):
+# прошивки собираются под xtensa-esp32s3-none-elf тулчейном espup и не
+# должны попадать в хост-CI корневого workspace. Скелет компилируется на
+# хосте без esp-тулчейна (см. README.md).
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"

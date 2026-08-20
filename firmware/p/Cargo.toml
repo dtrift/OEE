@@ -1,0 +1,12 @@
+[package]
+name = "firmware-p"
+description = "Прошивка узла P (Performance): TCRT5000 → фронт + анти-дребезг 50 мс → счёт"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# Раскомментировать при первой сборке под плату (см. ../README.md):
+# board = { path = "../board" }
+# esp-hal = { version = "1.1.2", features = ["esp32s3"] }
