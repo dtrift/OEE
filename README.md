@@ -23,6 +23,13 @@ TinyML (форк [microflow-rs](./fork/microflow) с `Conv1D`) → OEE-агре�
 cargo build && cargo test && cargo clippy --all-targets -- -D warnings
 ```
 
+Отдельная колея: `firmware/` — свой workspace (в корневой не входит), скелет
+прошивок собирается и тестируется на хосте без esp-тулчейна:
+
+```bash
+cd firmware && cargo test
+```
+
 Патч nalgebra из git понадобится в корневом `Cargo.toml` с недели 3 (когда
 крейты workspace получат path-зависимость от форка) — секция уже приготовлена
 и закомментирована с пояснением. CI (GitHub Actions, `.github/workflows/ci.yml`)
