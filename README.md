@@ -23,8 +23,11 @@ TinyML (форк [microflow-rs](./fork/microflow) с `Conv1D`) → OEE-агре�
 cargo build && cargo test && cargo clippy --all-targets -- -D warnings
 ```
 
-Для сборки нужен патч nalgebra из git — уже продублирован в корневом
-`Cargo.toml` (`[patch.crates-io]`).
+Патч nalgebra из git понадобится в корневом `Cargo.toml` с недели 3 (когда
+крейты workspace получат path-зависимость от форка) — секция уже приготовлена
+и закомментирована с пояснением. CI (GitHub Actions, `.github/workflows/ci.yml`)
+гоняет то же локально: два job'а — workspace и форк (fmt + clippy + тесты +
+примеры `sine`/`dense_spike`).
 
 ## Симулятор
 
