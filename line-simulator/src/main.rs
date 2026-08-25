@@ -45,7 +45,7 @@ fn main() -> Result<()> {
     let mut writer = csv::Writer::from_writer(out);
     writer.write_record(["t_ms", "current_a", "state"])?;
 
-    let mut simulator = Simulator::new(args.seed);
+    let mut simulator = Simulator::new(args.seed, scenario.signal);
     let total_samples = (scenario.duration_ms as u64 * SAMPLE_RATE_HZ as u64) / 1000;
     let mut next_event = 0usize;
 

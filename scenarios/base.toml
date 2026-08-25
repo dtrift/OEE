@@ -35,3 +35,8 @@ overload = 4.5
 
 [noise]
 sigma_a = 0.1
+
+[signal]
+third = 0.15
+fifth = 0.07
+drift_sigma = 0.05

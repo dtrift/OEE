@@ -79,6 +79,9 @@ cargo run -p line-simulator -- --scenario scenarios/base.toml --seed 42 --out ru
 
 Выход: CSV `t_ms,current_a,state` (state — истинный режим, ground truth).
 Детерминизм: один seed → побитово одинаковый CSV (тест `deterministic_csv`).
+Сценарии: `base.toml` (норма), `downtime.toml` (простои), `degradation.toml`
+(деградация) — датасет-заготовка недель 3–4. Форма сигнала (гармоники, дрейф
+амплитуды) и шум — параметры сценария (секции `[signal]` и `[noise]`).
 
 ## Python (ML-скрипты)
 

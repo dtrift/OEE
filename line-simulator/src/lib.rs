@@ -1,8 +1,9 @@
 //! Детерминированный симулятор производственной линии (разд. 3–4 плана OEE).
 //!
-//! FSM станка `idle → run → jam/overload` по декларативному сценарию,
-//! синтез сигнала тока (50 Гц + огибающая по режиму + шум по seed),
-//! вывод CSV «время, ток, истинный режим».
+//! FSM станка `idle → run/jam/overload` по декларативному сценарию,
+//! синтез сигнала тока (50 Гц + гармоники + огибающая по режиму + дрейф
+//! амплитуды + шум по seed; параметры — в сценарии), вывод CSV
+//! «время, ток, истинный режим».
 //!
 //! Детерминизм: один seed → побитово одинаковый CSV (проверяется тестом).
 
@@ -13,7 +14,8 @@ pub mod signal;
 use rand::{rngs::StdRng, SeedableRng};
 
 use crate::fsm::MachineState;
-use crate::scenario::{Envelope, Noise};
+use crate::scenario::{Envelope, Noise, Signal};
+use crate::signal::SignalGenerator;
 
 /// Строка CSV-вывода симулятора.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -32,14 +34,16 @@ pub struct Simulator {
     rng: StdRng,
     state: MachineState,
     sample_index: u64,
+    generator: SignalGenerator,
 }
 
 impl Simulator {
-    pub fn new(seed: u64) -> Self {
+    pub fn new(seed: u64, signal: Signal) -> Self {
         Self {
             rng: StdRng::seed_from_u64(seed),
             state: MachineState::Idle,
             sample_index: 0,
+            generator: SignalGenerator::new(signal),
         }
     }
 
@@ -58,7 +62,9 @@ impl Simulator {
         let t_ms = self.next_t_ms();
         let t = self.sample_index as f32 / scenario::SAMPLE_RATE_HZ;
         self.sample_index += 1;
-        let current = signal::synthesize(t, self.state, envelope, noise, &mut self.rng);
+        let current = self
+            .generator
+            .sample(t, self.state, envelope, noise, &mut self.rng);
         Sample {
             t_ms,
             current_a: current,
@@ -86,6 +92,7 @@ mod tests {
             overload: 4.5,
         };
         let noise = Noise { sigma_a: 0.1 };
+        let signal = Signal::default();
         let events = [
             MachineState::Run,
             MachineState::Jam,
@@ -93,7 +100,7 @@ mod tests {
             MachineState::Idle,
         ];
         let run = |seed: u64| {
-            let mut sim = Simulator::new(seed);
+            let mut sim = Simulator::new(seed, signal);
             (0..4_000)
                 .map(|i| {
                     if i % 1_000 == 0 {

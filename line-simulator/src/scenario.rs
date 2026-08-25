@@ -19,6 +19,31 @@ pub struct Noise {
     pub sigma_a: f32,
 }
 
+/// Форма сигнала тока: гармоники несущей и дрейф амплитуды (Д5 недели 2).
+///
+/// Амплитуды гармоник — доли основной; дрейф — СКО множителя амплитуды,
+/// обновляемого раз за период сети (20 мс).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Signal {
+    /// Амплитуда 3-й гармоники (доля основной).
+    pub third: f32,
+    /// Амплитуда 5-й гармоники (доля основной).
+    pub fifth: f32,
+    /// СКО дрейфа амплитуды за период (доля номинала).
+    pub drift_sigma: f32,
+}
+
+impl Default for Signal {
+    fn default() -> Self {
+        Self {
+            third: 0.15,
+            fifth: 0.07,
+            drift_sigma: 0.05,
+        }
+    }
+}
+
 /// Огибающая амплитуды тока по режимам, А.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,6 +79,9 @@ pub struct Scenario {
     /// Шум.
     #[serde(default = "default_noise")]
     pub noise: Noise,
+    /// Форма сигнала: гармоники и дрейф амплитуды.
+    #[serde(default)]
+    pub signal: Signal,
 }
 
 fn default_envelope() -> Envelope {
@@ -99,6 +127,17 @@ state = "Jam"
         assert_eq!(s.events.len(), 2);
         assert_eq!(s.events[0].state, MachineState::Run);
         assert_eq!(s.envelope.run, 2.0); // дефолт
+        assert_eq!(s.signal.third, 0.15); // дефолт
+        assert_eq!(s.signal.drift_sigma, 0.05);
+    }
+
+    #[test]
+    fn parses_signal_section() {
+        let text = "duration_ms = 1\nevents = []\n[signal]\nfifth = 0.02\n";
+        let s = Scenario::parse(text).expect("parse");
+        assert_eq!(s.signal.third, 0.15); // незаданное — дефолт
+        assert_eq!(s.signal.fifth, 0.02);
+        assert_eq!(s.signal.drift_sigma, 0.05);
     }
 
     #[test]

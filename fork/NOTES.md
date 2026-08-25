@@ -90,3 +90,27 @@
 
 Факт сериализации (дамп Д3) — в [`spike/conv1d-serialization.md`](../spike/conv1d-serialization.md);
 контракт реализации — в [`docs/conv1d-spec.md`](./docs/conv1d-spec.md).
+
+## Неделя 2 — кернел conv_1d (факты для недели 3)
+
+- Кернел: `microflow/src/ops/conv_1d.rs` (зарегистрирован в `ops/mod.rs`).
+- **Отличие от conv_2d по дизайну**: requant-константы НЕ считаются в макросе —
+  кернел берёт сырые scale'ы (вход/фильтры per-channel/выход) и сам считает
+  `m(f) = (scale_x·scale_w[f])/scale_out`. Кодегену недели 3 достаточно
+  пробросить scale/zp тензоров и int32-bias в acc-единицах (спека §3.1/§3.3).
+- **Bias — явный параметр** `Tensor2D<i32, F, 1, F>` в acc-единицах
+  (значение = round(bias_real / (scale_x·scale_w[f]))), не зашит в константы.
+- **Округление**: `f32::round_ties_even` (спека), а не `roundf` как в conv_2d —
+  implementations могут расходиться на ±1 квант, допуск §5.3 это покрывает.
+- **Насыщение**: `T::from_superset_unchecked` в simba = Rust `as`-cast
+  (усечение + насыщение) — подтверждено golden-тестами на насыщающихся кейсах.
+- **Same-паддинг**: не через `TensorView` (он заполняет нулями + коррекции zp
+  в conv_2d), а явной геометрией: вышедшие за границы окна не дают вклада —
+  это в точности «паддинг значением zp_x» из спеки §3.2. Формула TFLite:
+  `out = ceil(T/stride)`, `pad_left = pad_total/2` (лишний — справа).
+- Golden: `tests/golden/conv1d.txt` — 96 кейсов (12 форм × 8 вариантов, seed 42),
+  генератор `examples/golden_gen.rs` (naive-reference внутри), тест
+  `tests/conv1d_golden.rs` — бит-в-бит, dispatch-таблица форм должна
+  соответствовать генератору.
+- dev-зависимость `rand = "0.9"` добавлена (генератор фикстур); рантайм
+  остался no_std без новых зависимостей.
