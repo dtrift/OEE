@@ -1,6 +1,6 @@
 [package]
 name = "board"
-description = "Пины стенда ESP32-S3-DevKitC-1: единый источник истины для прошивок узлов"
+description = "ESP32-S3-DevKitC-1 bench pin map: single source of truth for node firmwares"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

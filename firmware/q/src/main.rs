@@ -1,13 +1,13 @@
-//! Прошивка узла Q (Quality): тап-тест → вердикт годен/брак.
+//! Node Q firmware (Quality): tap test -> pass/fail verdict.
 //!
-//! Оркестрация: PWM 50 Гц на серво ([`board`], отдельный БП 5 В) → удар
-//! палочкой по детали → пауза на установку контакта → окно I2S
-//! (`features-cli::window_spec`, 16 кГц) → `predict()` → вердикт.
+//! Orchestration: 50 Hz servo PWM ([`board`], separate 5 V supply) ->
+//! stick strike on the part -> settle pause -> I2S window
+//! (`features-cli::window_spec`, 16 kHz) -> `predict()` -> verdict.
 //!
-//! Узел должен переживать просадку питания от стартового тока серво:
-//! конденсатор у ножек серво, при brownout-ребуте — продолжать цикл
-//! (идемпотентность: незавершённый тап не считается вердиктом).
+//! The node must survive the supply sag from the servo inrush current:
+//! a capacitor at the servo pins; on a brownout reboot, continue the cycle
+//! (idempotency: an unfinished tap does not count as a verdict).
 
 fn main() {
-    // TODO(обкатка): #![no_std] + esp-hal; шаги — ../README.md.
+    // TODO(shakedown): #![no_std] + esp-hal; steps — ../README.md.
 }

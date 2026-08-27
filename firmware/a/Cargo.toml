@@ -1,13 +1,13 @@
 [package]
 name = "firmware-a"
-description = "Прошивка узла A (Availability): ACS712 → ADC1 → калибровка → окно → predict → статус"
+description = "Node A firmware (Availability): ACS712 -> ADC1 -> calibration -> window -> predict -> status"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [dependencies]
-# Раскомментировать при первой сборке под плату (см. ../README.md):
+# Uncomment for the first on-board build (see ../README.md):
 # board = { path = "../board" }
 # features-cli = { path = "../../features-cli" }
 # esp-hal = { version = "1.1.2", features = ["esp32s3"] }

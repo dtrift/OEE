@@ -2,10 +2,10 @@
 resolver = "2"
 members = ["board", "a", "q", "p"]
 
-# Отдельный workspace от корневого OEE (прецедент: fork/microflow):
-# прошивки собираются под xtensa-esp32s3-none-elf тулчейном espup и не
-# должны попадать в хост-CI корневого workspace. Скелет компилируется на
-# хосте без esp-тулчейна (см. README.md).
+# A workspace separate from the root OEE one (precedent: fork/microflow):
+# firmwares build with the espup xtensa-esp32s3-none-elf toolchain and must
+# not enter the host CI of the root workspace. The skeleton compiles on the
+# host without the esp toolchain (see README.md).
 
 [workspace.package]
 edition = "2021"

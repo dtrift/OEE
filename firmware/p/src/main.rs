@@ -1,10 +1,10 @@
-//! Прошивка узла P (Performance): IR-барьер TCRT5000 (OUT → GPIO5,
-//! [`board`]) → детектор фронта с анти-дребезгом ~50 мс → счёт деталей.
+//! Node P firmware (Performance): TCRT5000 IR barrier (OUT -> GPIO5,
+//! [`board`]) -> edge detector with ~50 ms debounce -> part counting.
 //!
-//! Логика детектора — чистое ядро (тестируется на хосте в `nodes`),
-//! прошивка — только обвязка GPIO/прерываний. Второй барьер «конец
-//! ленты» — тот же драйвер, другой пин (назначается при сборке стенда).
+//! Detector logic is a pure core (host-tested in `nodes`); the firmware is
+//! only GPIO/interrupt plumbing. The second "belt end" barrier is the same
+//! driver on another pin (assigned at bench assembly).
 
 fn main() {
-    // TODO(обкатка): #![no_std] + esp-hal; шаги — ../README.md.
+    // TODO(shakedown): #![no_std] + esp-hal; steps — ../README.md.
 }
