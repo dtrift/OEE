@@ -1,5 +1,5 @@
-# Базовый сценарий прогона: 60 секунд, нормальная работа с двумя заторами.
-# Этот файл — ground truth: события = истинные смены режима станка.
+# Base run scenario: 60 seconds, normal operation with two jams.
+# This file is the ground truth: events = true machine mode changes.
 
 duration_ms = 60000
 
@@ -35,3 +35,8 @@ overload = 4.5
 
 [noise]
 sigma_a = 0.1
+
+[signal]
+third = 0.15
+fifth = 0.07
+drift_sigma = 0.05

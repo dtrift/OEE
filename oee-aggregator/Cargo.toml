@@ -1,6 +1,6 @@
 [package]
 name = "oee-aggregator"
-description = "Подписка на MQTT, формула OEE = A x P x Q, публикация для дашборда (неделя 5)"
+description = "MQTT subscription, OEE = A x P x Q formula, publishing for the dashboard (week 5)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

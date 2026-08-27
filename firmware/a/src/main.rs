@@ -1,12 +1,12 @@
-//! Прошивка узла A (Availability): ACS712-20A → ADC1 (GPIO4, [`board`]) →
-//! калибровка `features-cli::calibration` (нуль — усреднением на холостом
-//! ходу при старте) → окно 128 @ 1.6 кГц (`features-cli::window_spec`) →
-//! `predict()` → статус.
+//! Node A firmware (Availability): ACS712-20A -> ADC1 (GPIO4, [`board`]) ->
+//! `features-cli::calibration` calibration (zero via startup no-load
+//! averaging) -> 128-sample window @ 1.6 kHz (`features-cli::window_spec`) ->
+//! `predict()` -> status.
 //!
-//! Скелет: собирается на хосте без esp-тулчейна. План первой версии:
-//! статусы в USB-CDC (та же схема CSV, что в `features-cli::capture`),
-//! MQTT через esp-wifi — после end-to-end по проводу.
+//! Skeleton: builds on the host without the esp toolchain. First-version
+//! plan: statuses over USB-CDC (the same CSV schema as in
+//! `features-cli::capture`), MQTT via esp-wifi — after the wired end-to-end.
 
 fn main() {
-    // TODO(обкатка): #![no_std] + esp-hal; шаги — ../README.md.
+    // TODO(shakedown): #![no_std] + esp-hal; steps — ../README.md.
 }

@@ -1,6 +1,6 @@
 [package]
 name = "line-simulator"
-description = "Детерминированный симулятор производственной линии: FSM станка, синтез сигнала тока, CSV-вывод"
+description = "Deterministic production-line simulator: machine FSM, current-signal synthesis, CSV output"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

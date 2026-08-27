@@ -4,7 +4,7 @@
 
 > Разложение строки «Неделя 2» из плана [`plan.md`](../plan.md), разд. 9. Главная
 > линия — int8-кернел `conv_1d` по спеке недели 1
-> ([`fork/docs/conv1d-spec.md`](../../fork/docs/conv1d-spec.md), §3 «Кернел», §5 «Тесты»)
+> ([`fork/docs/conv1d-spec.md`](../../../fork/docs/conv1d-spec.md), §3 «Кернел», §5 «Тесты»)
 > с golden-тестами бит-в-бит против Rust-reference; вторая — доведение сигнала тока
 > симулятора до ML-пригодности. Режим: 1 человек; будни ~2–3 ч, суббота ~4 ч.
 > Оценка: ~16–19 ч.
@@ -19,14 +19,29 @@
 
 ## Гейт недели (минимально готово)
 
-- [ ] Кернел `conv_1d` проходит toy-тест (§5.1) и golden-кейсы бит-в-бит против
+- [x] Кернел `conv_1d` проходит toy-тест (§5.1) и golden-кейсы бит-в-бит против
       Rust-reference (§5.2): int8-вход, i32-аккумулятор, per-channel requant.
-- [ ] Краевые случаи зелёные (DoD §6): `T < kernel_size` (same), `stride = 2`,
+      8 юнит-тестов с ручными числами —
+      [conv_1d.rs](../../../fork/microflow/src/ops/conv_1d.rs); 96 golden-кейсов —
+      [conv1d_golden.rs](../../../fork/microflow/tests/conv1d_golden.rs)
+      (генератор [golden_gen.rs](../../../fork/microflow/examples/golden_gen.rs),
+      seed 42, идемпотентен).
+- [x] Краевые случаи зелёные (DoD §6): `T < kernel_size` (same), `stride = 2`,
       `valid/same`, 8 каналов; кернел `no_std`, без аллокаций.
-- [ ] `cargo test` + `cargo clippy --all-targets -- -D warnings` зелёные в форке
-      и workspace.
-- [ ] Симулятор: параметры сигнала в сценарии; классы различимы, но не идеально
+      Сверх списка: T=1/63/64, насыщение, ties-to-even, нейтральность
+      zp_x-паддинга — юнит- и golden-набор.
+- [x] `cargo test` + `cargo clippy --all-targets -- -D warnings` зелёные в форке
+      и workspace. Форк: 33 lib + 4 integration, clippy чист (CI-флаг
+      `-A mismatched_lifetime_syntaxes` для сгенерированного flatbuffers);
+      workspace: 10 сьютов, clippy чист; перепроверено при гейте —
+      [week2-gate.md](../week2-gate.md).
+- [x] Симулятор: параметры сигнала в сценарии; классы различимы, но не идеально
       (RMS-окна по режимам различаются, хвосты перекрываются).
+      Секция `[signal]` — [scenario.rs](../../../line-simulator/src/scenario.rs);
+      тесты разделимости (средние RMS различаются, внутри режима разброс) —
+      [signal.rs](../../../line-simulator/src/signal.rs); сценарии
+      [base](../../../scenarios/base.toml)/[downtime](../../../scenarios/downtime.toml)/[degradation](../../../scenarios/degradation.toml);
+      один seed → `diff` пустой (CLI-проверка в гейте).
 
 ## Сводка по дням
 
@@ -131,9 +146,9 @@
    (договорённость из [`week1-gate.md`](../week1-gate.md)); что замедлило.
 3. План недели 3: парсер + кодеген + обучение (черновик — [`step-3.md`](../plan/step-3.md)).
 
-Артефакт: `docs/week2-gate.md` — чеклист + 5–10 строк выводов (в раннем плане значился
-`tmp/OEE/week2-gate.md`; `tmp/` gitignored — гейт-доки живут в `docs/`, прецедент —
-неделя 1).
+Артефакт: [`docs/week2-gate.md`](../week2-gate.md) — чеклист + 5–10 строк выводов
+(в раннем плане значился `tmp/OEE/week2-gate.md`; `tmp/` gitignored — гейт-доки
+живут в `docs/`, прецедент — неделя 1).
 
 ## Точки эскалации
 

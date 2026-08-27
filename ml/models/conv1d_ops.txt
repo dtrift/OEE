@@ -1,4 +1,4 @@
-# Дамп операторов conv1d.tflite (факт сериализации, Д3 недели 1)
+# conv1d.tflite operator dump (serialization fact, week-1 item D3)
 
 op[0] EXPAND_DIMS
   in  #0 serving_default_keras_tensor:0 shape=[np.int32(1), np.int32(128), np.int32(1)] dtype=<class 'numpy.int8'>, scale=0.012819952331483364, zp=1
@@ -98,6 +98,6 @@ op[22] DELEGATE
   in  #30 sequential_1/flatten_1/Reshape shape=[np.int32(1), np.int32(480)] dtype=<class 'numpy.int8'>, scale=0.0029724943451583385, zp=-128
   out #31 sequential_1/dense_1/MatMul2 shape=[np.int32(1), np.int32(4)] dtype=<class 'numpy.int8'>, scale=0.0024239737540483475, zp=-40
 
-# Глобальные вход/выход subgraph
+# Global subgraph input/output
   input  #0 serving_default_keras_tensor:0 shape=[np.int32(1), np.int32(128), np.int32(1)] dtype=<class 'numpy.int8'>, scale=0.012819952331483364, zp=1
   output #32 StatefulPartitionedCall_1:0 shape=[np.int32(1), np.int32(4)] dtype=<class 'numpy.int8'>, scale=0.00390625, zp=-128

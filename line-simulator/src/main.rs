@@ -1,4 +1,4 @@
-//! CLI симулятора: `line-simulator --scenario base.toml --seed 42 --out run1.csv`.
+//! Simulator CLI: `line-simulator --scenario base.toml --seed 42 --out run1.csv`.
 
 use std::fs;
 use std::io::Write;
@@ -10,17 +10,17 @@ use clap::Parser;
 use line_simulator::scenario::{Scenario, SAMPLE_RATE_HZ};
 use line_simulator::Simulator;
 
-/// Детерминированный симулятор производственной линии.
+/// Deterministic production-line simulator.
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Args {
-    /// Путь к TOML-сценарию (ground truth прогона).
+    /// Path to the TOML scenario (run ground truth).
     #[arg(long)]
     scenario: PathBuf,
-    /// Seed генератора шума (детерминизм: один seed → один CSV).
+    /// Noise generator seed (determinism: one seed -> one CSV).
     #[arg(long, default_value_t = 42)]
     seed: u64,
-    /// Куда писать CSV (t_ms,current_a,state).
+    /// Where to write the CSV (t_ms,current_a,state).
     #[arg(long)]
     out: PathBuf,
 }
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let text = fs::read_to_string(&args.scenario)
-        .with_context(|| format!("чтение {}", args.scenario.display()))?;
+        .with_context(|| format!("reading {}", args.scenario.display()))?;
     let scenario = Scenario::parse(&text).map_err(anyhow::Error::msg)?;
 
     let stdout = std::io::stdout();
@@ -38,14 +38,14 @@ fn main() -> Result<()> {
     } else {
         Box::new(
             fs::File::create(&args.out)
-                .with_context(|| format!("создание {}", args.out.display()))?,
+                .with_context(|| format!("creating {}", args.out.display()))?,
         )
     };
 
     let mut writer = csv::Writer::from_writer(out);
     writer.write_record(["t_ms", "current_a", "state"])?;
 
-    let mut simulator = Simulator::new(args.seed);
+    let mut simulator = Simulator::new(args.seed, scenario.signal);
     let total_samples = (scenario.duration_ms as u64 * SAMPLE_RATE_HZ as u64) / 1000;
     let mut next_event = 0usize;
 

@@ -10,18 +10,18 @@
 ## Гейт недели (минимально готово)
 
 - [x] `predict()` работает на хосте: пример из форка считается; бонус — своя dense-модель.
-      `sine` — [NOTES.md](../../fork/NOTES.md), Д1; бонус `dense_spike` с нашей Keras-моделью —
-      [спайк-док](../../spike/conv1d-serialization.md), разд. «Бонус».
+      `sine` — [NOTES.md](../../../fork/NOTES.md), Д1; бонус `dense_spike` с нашей Keras-моделью —
+      [спайк-док](../../../spike/conv1d-serialization.md), разд. «Бонус».
 - [x] Спека `Conv1D` написана и достаточна, чтобы реализация шла без домыслов.
-      [fork/docs/conv1d-spec.md](../../fork/docs/conv1d-spec.md).
+      [fork/docs/conv1d-spec.md](../../../fork/docs/conv1d-spec.md).
 - [x] Форк собирается: `cargo build` + `cargo test` зелёные (риск №1 снят или обработан).
-      25 lib + 3 integration теста зелёные; [NOTES.md](../../fork/NOTES.md), Д1;
+      25 lib + 3 integration теста зелёные; [NOTES.md](../../../fork/NOTES.md), Д1;
       перепроверено при гейте — [week1-gate.md](../week1-gate.md).
 - [x] Факт сериализации `Conv1D` в `.tflite` задокументирован дампом операторов (риск №2).
-      [spike/conv1d-serialization.md](../../spike/conv1d-serialization.md).
+      [spike/conv1d-serialization.md](../../../spike/conv1d-serialization.md).
 - [x] Каркас workspace (5 сущностей из разд. 3 плана) собирается; симулятор выдаёт первый
       детерминированный CSV. 22 теста + clippy `-D warnings` зелёные; детерминизм —
-      тест [determinism.rs](../../line-simulator/tests/determinism.rs) и локальный
+      тест [determinism.rs](../../../line-simulator/tests/determinism.rs) и локальный
       `diff run1.csv run2.csv` (пустой; детали — [week1-gate.md](../week1-gate.md)).
 
 ## Сводка по дням

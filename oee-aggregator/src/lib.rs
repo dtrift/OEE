@@ -1,8 +1,8 @@
-//! OEE-агрегатор (разд. 3 плана): A × P × Q из топиков `oee/line1/*`.
+//! OEE aggregator (plan section 3): A × P × Q from `oee/line1/*` topics.
 //!
-//! Неделя 1: каркас-заглушка. Формула и MQTT — неделя 5.
+//! Week 1: skeleton stub. Formula and MQTT — week 5.
 
-/// OEE = Availability × Performance × Quality (разд. 1.1 плана).
+/// OEE = Availability × Performance × Quality (plan section 1.1).
 pub fn oee(availability: f32, performance: f32, quality: f32) -> f32 {
     availability * performance * quality
 }

@@ -1,13 +1,13 @@
-"""Бонус Д3 (неделя 1): dense-модель для полного малого цикла Keras -> tflite -> Rust.
+"""Bonus D3 (week 1): dense model for the full minimal Keras -> tflite -> Rust loop.
 
-FC + Softmax на входе ранга 1 (без свёрток) — минимальная модель, которую должен
-проглотить форк microflow как есть. Проверяет, что наш TF экспортирует парсящийся
-форком .tflite, до всякого Conv1D.
+FC + Softmax on a rank-1 input (no convolutions) — the minimal model the
+microflow fork must swallow as is. Verifies that our TF exports a .tflite
+the fork parses, before any Conv1D.
 
-Запуск (от корня репо):
+Run (from the repo root):
     tmp/venv312/bin/python ml/scripts/build_dense_model.py
 
-Артефакт:
+Artifact:
     ml/models/dense.tflite
 """
 
@@ -30,9 +30,10 @@ def representative_dataset():
 
 
 def build_model() -> tf.keras.Model:
-    # bias_initializer ненулевой: нулевой bias конвертер TF 2.21 выбрасывает
-    # (FULLY_CONNECTED получает optional-вход -1), а парсер форка ожидает
-    # bias третьим входом. Факт зафиксирован в spike/conv1d-serialization.md.
+    # Non-zero bias_initializer: the TF 2.21 converter drops a zero bias
+    # (FULLY_CONNECTED gets an optional -1 input), while the fork parser
+    # expects the bias as the third input. The fact is recorded in
+    # spike/conv1d-serialization.md.
     model = tf.keras.Sequential(
         [
             tf.keras.layers.Input(shape=(INPUT_DIM,)),
@@ -54,8 +55,8 @@ def quantize(model: tf.keras.Model) -> bytes:
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     converter.inference_input_type = tf.int8
     converter.inference_output_type = tf.int8
-    # Веса FC по умолчанию квантуются per-channel, а runtime форка поддерживает
-    # только per-tensor (QUANTS=1). Для спайка отключаем per-channel.
+    # FC weights quantize per-channel by default, but the fork runtime supports
+    # only per-tensor (QUANTS=1). For the spike we disable per-channel.
     converter._experimental_disable_per_channel = True
     return converter.convert()
 

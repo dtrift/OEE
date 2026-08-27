@@ -1,6 +1,6 @@
-//! Узел A: ток станка → фичи → 1D-CNN → статус.
+//! Node A: machine current -> features -> 1D-CNN -> status.
 
-/// Назначение узла (заглушка недели 1; контракт уточнится в неделе 4).
+/// Node purpose (week-1 stub; the contract will be refined in week 4).
 pub fn describe() -> &'static str {
     "node A: current -> features -> conv1d -> state"
 }

@@ -1,50 +1,50 @@
 #![no_std]
 
-//! Пины стенда OEE на ESP32-S3-DevKitC-1 (N16R8).
+//! OEE bench pins on ESP32-S3-DevKitC-1 (N16R8).
 //!
-//! Единый источник истины по подключениям. Изменение схемы стенда —
-//! правка здесь, не в прошивках узлов.
+//! Single source of truth for wiring. Bench schematic changes are made
+//! here, not in node firmwares.
 
-/// Узел A (ток): ACS712-20A через делитель 2:1.
+/// Node A (current): ACS712-20A through a 2:1 divider.
 pub mod node_a {
-    /// Вход ACS712 после делителя — ADC1, GPIO4.
+    /// ACS712 input after the divider — ADC1, GPIO4.
     ///
-    /// Только ADC1: ADC2 конфликтует с WiFi (MQTT по WiFi).
+    /// ADC1 only: ADC2 conflicts with WiFi (MQTT over WiFi).
     pub const ADC_CURRENT: u8 = 4;
 }
 
-/// Узел Q (звук + серво).
+/// Node Q (audio + servo).
 pub mod node_q {
-    /// I2S SCK (BCLK) микрофона INMP441.
+    /// I2S SCK (BCLK) of the INMP441 mic.
     pub const I2S_SCK: u8 = 12;
     /// I2S WS (LRCL).
     pub const I2S_WS: u8 = 13;
-    /// I2S SD (данные микрофона).
+    /// I2S SD (mic data).
     pub const I2S_SD: u8 = 14;
-    /// PWM серво SG90, 50 Гц. Питание серво — отдельный БП 5 В.
+    /// SG90 servo PWM, 50 Hz. Servo power is a separate 5 V supply.
     pub const SERVO_PWM: u8 = 11;
 }
 
-/// Узел P (IR-барьер): OUT модуля TCRT5000 (компаратор на модуле,
-/// резисторы не нужны).
+/// Node P (IR barrier): TCRT5000 module OUT (comparator on the module,
+/// no resistors needed).
 pub mod node_p {
-    /// Выход IR-барьера; счёт по фронту, анти-дребезг ~50 мс.
+    /// IR-barrier output; edge counting, ~50 ms debounce.
     pub const IR_OUT: u8 = 5;
 }
 
-/// Пины, занятые платой или чипом: не использовать в схемах стенда.
+/// Pins taken by the board or chip: do not use in bench schematics.
 pub const RESERVED: [u8; 11] = [
     0, 3, 45, 46, // strapping
     19, 20, // USB D−/D+
-    43, 44, // UART0/консоль
-    35, 36, 37, // octal PSRAM у N16R8
+    43, 44, // UART0/console
+    35, 36, 37, // octal PSRAM on N16R8
 ];
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Все назначенные пины различны и не попадают в зарезервированные.
+    /// All assigned pins are distinct and avoid the reserved ones.
     #[test]
     fn used_pins_are_free_and_distinct() {
         let used = [
@@ -56,10 +56,13 @@ mod tests {
             node_p::IR_OUT,
         ];
         for (i, &pin) in used.iter().enumerate() {
-            assert!(!RESERVED.contains(&pin), "пин {pin} зарезервирован платой");
+            assert!(
+                !RESERVED.contains(&pin),
+                "pin {pin} is reserved by the board"
+            );
             assert!(
                 !used[..i].contains(&pin),
-                "пин {pin} назначен дважды — конфликт узлов"
+                "pin {pin} assigned twice — node conflict"
             );
         }
     }

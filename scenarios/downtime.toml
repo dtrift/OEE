@@ -1,0 +1,58 @@
+# "Downtime" scenario: long idle periods alternate with short runs.
+# Dataset seed material for weeks 3-4 (node A: mode classification).
+
+duration_ms = 60000
+
+[[events]]
+t_ms = 5000
+state = "Run"
+
+[[events]]
+t_ms = 12000
+state = "Idle"
+
+[[events]]
+t_ms = 20000
+state = "Run"
+
+[[events]]
+t_ms = 21000
+state = "Jam"
+
+[[events]]
+t_ms = 21400
+state = "Idle"
+
+[[events]]
+t_ms = 35000
+state = "Run"
+
+[[events]]
+t_ms = 45000
+state = "Idle"
+
+[[events]]
+t_ms = 46000
+state = "Overload"
+
+[[events]]
+t_ms = 46800
+state = "Idle"
+
+[[events]]
+t_ms = 55000
+state = "Run"
+
+[envelope]
+idle = 0.4
+run = 2.0
+jam = 3.2
+overload = 4.5
+
+[noise]
+sigma_a = 0.15
+
+[signal]
+third = 0.15
+fifth = 0.07
+drift_sigma = 0.06

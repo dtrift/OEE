@@ -1,16 +1,16 @@
-//! Схема CSV захвата с железа — контракт между прошивкой (запись),
-//! разметкой и пайплайном обучения.
+//! CSV schema of hardware captures — a contract between the firmware
+//! (writer), labeling, and the training pipeline.
 //!
-//! Отличается от экспорта симулятора (`t_ms,current_a,state`) колонками
-//! трассировки; `value` — те же единицы (амперы после
-//! [`crate::calibration::CurrentCalibration`]), поэтому код нарезки окон и
-//! фичей общий для обеих колей.
+//! Differs from the simulator export (`t_ms,current_a,state`) by its
+//! tracing columns; `value` uses the same units (amps after
+//! [`crate::calibration::CurrentCalibration`]), so the window-slicing and
+//! feature code is shared between both tracks.
 
-/// Заголовок CSV захвата (порядок колонок фиксирован).
+/// Capture CSV header (column order is fixed).
 pub const CAPTURE_HEADER: [&str; 6] = ["t_ms", "node", "run_id", "value", "state", "note"];
 
-/// Значение колонки `state` до разметки (метки проставляются вручную по
-/// журналу прогона — ground truth стенда).
+/// `state` column value before labeling (labels are assigned manually from
+/// the run log — the bench ground truth).
 pub const STATE_UNLABELED: &str = "";
 
 #[cfg(test)]
@@ -20,8 +20,9 @@ mod tests {
 
     #[test]
     fn header_is_stable() {
-        // Контракт закреплён Literal'ом: любое изменение — осознанная правка,
-        // синхронно с прошивкой-писателем и скриптом обучения.
+        // The contract is pinned by this Literal: any change must be a
+        // deliberate edit, in sync with the writer firmware and the
+        // training script.
         assert_eq!(
             CAPTURE_HEADER,
             ["t_ms", "node", "run_id", "value", "state", "note"]
@@ -30,7 +31,7 @@ mod tests {
 
     #[test]
     fn node_column_values_match_node_kinds() {
-        // Колонка node ∈ {a,p,q} — ровно значения NodeKind::as_str.
+        // The node column is in {a,p,q} — exactly the NodeKind::as_str values.
         let values = [
             NodeKind::A.as_str(),
             NodeKind::P.as_str(),

@@ -1,139 +1,153 @@
-# OEE-стенд на TinyML: цифровой двойник
+# OEE Bench on TinyML: Digital Twin
 
-Цифровой двойник производственной линии: вместо станка — детерминированный
-симулятор, вместо микроконтроллеров — узлы на хосте. Узлы читают сигнал,
-распознают режим работы нейросетью (форк [microflow-rs](./fork/microflow) с
-`Conv1D`) и сводят результат в одну цифру OEE — общую эффективность
-оборудования. Параллельно идёт подготовка к обкатке на реальном стенде
-ESP32-S3 (`firmware/`).
+Russian version: [README.ru.md](README.ru.md)
 
-## Словарь
+A digital twin of a production line: instead of a machine — a deterministic
+simulator, instead of microcontrollers — host-side nodes. The nodes read the
+signal, recognize the machine mode with a neural network (a
+[microflow-rs](./fork/microflow) fork with `Conv1D`), and fold the result
+into a single OEE number — overall equipment effectiveness. In parallel,
+preparation for a shakedown on a real ESP32-S3 bench is underway
+(`firmware/`).
 
-| Термин         | Значение                                                          |
-| -------------- | ----------------------------------------------------------------- |
-| OEE            | Availability × Performance × Quality — одна цифра эффективности   |
-| Узлы A / P / Q | Измерители: ток (A), счёт деталей (P), акустика (Q)               |
-| Ground truth   | Истинные режимы из сценария — эталон для сверки измерений         |
-| Спайк          | Короткое пробное исследование (неделя 1)                          |
-| Гейт           | Чеклист «минимально готово» в конце недели                        |
-| Колея железа   | Параллельная линия разработки под реальный стенд                  |
+## Glossary
 
-## Как это устроено
+| Term            | Meaning                                                                |
+| --------------- | ---------------------------------------------------------------------- |
+| OEE             | Availability × Performance × Quality — a single efficiency number      |
+| Nodes A / P / Q | Measurers: current (A), part counting (P), acoustics (Q)               |
+| Ground truth    | True modes from the scenario — the reference for checking measurements |
+| Spike           | A short exploratory study (week 1)                                     |
+| Gate            | A "minimum done" checklist at the end of a week                        |
+| Hardware track  | The parallel development line for the real bench                       |
 
-Целевая схема (недели 4–5): симулятор порождает поток данных, три узла
-измеряют свою компоненту и публикуют статусы в MQTT (`oee/line1/*`),
-агрегатор сводит всё в OEE, TUI-дашборд показывает live-цифры.
+## How it works
+
+Target layout (weeks 4–5): the simulator produces a data stream, three nodes
+measure their component and publish statuses to MQTT (`oee/line1/*`), the
+aggregator folds everything into OEE, a TUI dashboard shows live numbers.
 
 ```mermaid
 graph LR
-    S[Симулятор линии] --> A[Узел A: ток → CNN → статус]
-    S --> P[Узел P: IR-счёт деталей]
-    S --> Q[Узел Q: акустика → CNN → вердикт]
-    A --> M[MQTT-шина]
+    S[Line simulator] --> A[Node A: current → CNN → status]
+    S --> P[Node P: IR part counting]
+    S --> Q[Node Q: acoustics → CNN → verdict]
+    A --> M[MQTT bus]
     P --> M
     Q --> M
-    M --> O[Агрегатор: OEE = A × P × Q]
+    M --> O[Aggregator: OEE = A × P × Q]
     O --> M
-    M --> D[Дашборд ratatui]
+    M --> D[ratatui dashboard]
 ```
 
-## Структура
+## Structure
 
-| Путь              | Назначение                                                          |
-| ----------------- | ------------------------------------------------------------------- |
-| `line-simulator/` | FSM станка + синтез сигнала тока + CSV (датасет и ground truth)     |
-| `nodes/`          | Узлы A (ток) / P (счёт) / Q (акустика) — в разработке, недели 4–5   |
-| `oee-aggregator/` | A × P × Q → OEE — в разработке, неделя 5                            |
-| `oee-dashboard/`  | TUI-дашборд ratatui: live OEE/A/P/Q — в разработке, неделя 5        |
-| `features-cli/`   | Общий Rust-код фич + контракты железа (окно, калибровка, capture)   |
-| `fork/microflow`  | Форк движка microflow-rs (Conv1D) — свой workspace                  |
-| `ml/`             | Python: Keras → int8 tflite + дампы                                 |
-| `scenarios/`      | Декларативные TOML-сценарии прогонов (ground truth)                 |
-| `spike/`          | Спайк-доки недели 1 (сериализация Conv1D)                           |
-| `firmware/`       | Скелет прошивок ESP32-S3 — колея железа (свой workspace)            |
+| Path              | Purpose                                                                      |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `line-simulator/` | Machine FSM + current-signal synthesis + CSV (dataset and ground truth)      |
+| `nodes/`          | Nodes A (current) / P (counting) / Q (acoustics) — in progress, weeks 4–5    |
+| `oee-aggregator/` | A × P × Q → OEE — in progress, week 5                                        |
+| `oee-dashboard/`  | ratatui TUI dashboard: live OEE/A/P/Q — in progress, week 5                  |
+| `features-cli/`   | Shared Rust feature code + hardware contracts (window, calibration, capture) |
+| `fork/microflow`  | microflow-rs engine fork (Conv1D) — its own workspace                        |
+| `ml/`             | Python: Keras → int8 tflite + dumps                                          |
+| `scenarios/`      | Declarative TOML run scenarios (ground truth)                                |
+| `spike/`          | Week-1 spike docs (Conv1D serialization)                                     |
+| `firmware/`       | ESP32-S3 firmware skeletons — hardware track (its own workspace)             |
 
-## Сборка и тесты
+Documentation: `docs/eng/` (English), `docs/rus/` (Russian originals).
+
+## Build and tests
 
 ```bash
 cargo build && cargo test && cargo clippy --all-targets -- -D warnings
 ```
 
-Отдельная колея — `firmware/`: свой workspace (в корневой не входит); скелет
-прошивок собирается и тестируется на хосте без esp-тулчейна:
+A separate track is `firmware/`: its own workspace (not part of the root
+one); the firmware skeletons build and test on the host without the esp
+toolchain:
 
 ```bash
 cd firmware && cargo test
 ```
 
-Патч nalgebra из git понадобится в корневом `Cargo.toml` с недели 3 (когда
-крейты workspace получат path-зависимость от форка) — секция уже приготовлена
-и закомментирована с пояснением. CI (GitHub Actions, `.github/workflows/ci.yml`)
-выполняет те же проверки: два задания — workspace и форк (fmt + clippy +
-тесты + примеры `sine`/`dense_spike`).
+The nalgebra git patch will be needed in the root `Cargo.toml` from week 3
+(when workspace crates gain a path dependency on the fork) — the section is
+already prepared and commented out with an explanation. CI (GitHub Actions,
+`.github/workflows/ci.yml`) runs the same checks: two jobs — workspace and
+fork (fmt + clippy + tests + the `sine`/`dense_spike` examples).
 
-## Симулятор
+## Simulator
 
 ```bash
 cargo run -p line-simulator -- --scenario scenarios/base.toml --seed 42 --out run1.csv
 ```
 
-Выход: CSV `t_ms,current_a,state` (state — истинный режим, ground truth).
-Детерминизм: один seed → побитово одинаковый CSV (тест `deterministic_csv`).
+Output: CSV `t_ms,current_a,state` (state is the true mode, ground truth).
+Determinism: one seed → a bit-identical CSV (the `deterministic_csv` test).
+Scenarios: `base.toml` (normal), `downtime.toml` (downtime),
+`degradation.toml` (degradation) — dataset seed material for weeks 3–4.
+Signal shape (harmonics, amplitude drift) and noise are scenario parameters
+(the `[signal]` and `[noise]` sections).
 
-## Python (ML-скрипты)
+## Python (ML scripts)
 
-TensorFlow нужен Python 3.12 (системный 3.14 не поддерживается TF).
-Окружение живёт в `tmp/` (gitignored):
+TensorFlow needs Python 3.12 (the system 3.14 is not supported by TF).
+The environment lives in `tmp/` (gitignored):
 
 ```bash
-tmp/venv312/bin/python ml/scripts/build_conv1d_model.py   # спайк-модель + дамп
-tmp/venv312/bin/python ml/scripts/build_dense_model.py    # dense-бонус
+tmp/venv312/bin/python ml/scripts/build_conv1d_model.py   # spike model + dump
+tmp/venv312/bin/python ml/scripts/build_dense_model.py    # dense bonus
 ```
 
-## Форк microflow
+## microflow fork
 
-`fork/microflow` — клон https://github.com/matteocarnelos/microflow-rs
-(коммит `6d193da`). Сборка и тесты:
+`fork/microflow` is a clone of https://github.com/matteocarnelos/microflow-rs
+(commit `6d193da`). Build and tests:
 
 ```bash
 cd fork/microflow && cargo test
-cargo run --example sine        # predict() на хосте
-cargo run --example dense_spike # наша Keras-модель через #[model]
+cargo run --example sine        # predict() on the host
+cargo run --example dense_spike # our Keras model via #[model]
 ```
 
-Документы: `fork/NOTES.md` (структура), `fork/docs/conv1d-spec.md` (спека
-Conv1D — контракт недель 2–3).
+Documents: `fork/NOTES.md` (structure), `fork/docs/conv1d-spec.md` (the
+Conv1D spec — the week 2–3 contract).
 
-Форк подключён как git submodule: история нужна для будущего PR в апстрим.
-Путь `fork/microflow` не меняется — path-зависимости не затронуты.
+The fork is wired in as a git submodule: its history is needed for a future
+upstream PR. The `fork/microflow` path does not change — path dependencies
+are unaffected.
 
-## Колея железа (параллельная)
+## Hardware track (parallel)
 
-Основная линия разработки (без железа) — критический путь; обкатка на стенде
-идёт параллельно через фиксированные контракты:
+The main development line (without hardware) is the critical path; the bench
+shakedown runs in parallel through fixed contracts:
 
-- `features-cli` — `#![no_std]`-крейт контрактов: `window_spec` (окно и
-  частота per-узел), `calibration` (ADC → амперы, ACS712 + делитель),
-  `capture` (CSV-схема захватов с `node`/`run_id`);
-- `nodes::source` — trait `SensorSource`: `SimSource` (неделя 4) и
-  сенсорные источники прошивки — один контракт;
-- `firmware/` — отдельный workspace (прецедент `fork/microflow`):
-  `board` с пинами стенда + заглушки прошивок A/Q/P, собирается на хосте
-  без esp-тулчейна.
+- `features-cli` — a `#![no_std]` contracts crate: `window_spec` (per-node
+  window and rate), `calibration` (ADC → amps, ACS712 + divider), `capture`
+  (capture CSV schema with `node`/`run_id`);
+- `nodes::source` — the `SensorSource` trait: `SimSource` (week 4) and
+  firmware sensor sources — one contract;
+- `firmware/` — a separate workspace (precedent: `fork/microflow`): `board`
+  with the bench pins + A/Q/P firmware skeletons, builds on the host without
+  the esp toolchain.
 
-## Статус
+## Status
 
-Готово (неделя 1 + колея железа):
+Done (week 1 + the hardware track):
 
-- Форк microflow собирается, тесты зелёные, `sine` предсказывает — риск №1
-  снят.
-- Факт сериализации Conv1D зафиксирован (`spike/conv1d-serialization.md`),
-  спека — `fork/docs/conv1d-spec.md`.
-- Каркас workspace и симулятор: FSM + синтез сигнала + детерминизм (один
-  seed — побитово одинаковый CSV).
-- Контракты колеи железа: `window_spec` / калибровка / capture в
-  `features-cli`, `SensorSource` в `nodes`, скелет `firmware/`.
+- The microflow fork builds, tests are green, `sine` predicts — risk #1 is
+  retired.
+- The Conv1D serialization fact is recorded
+  (`spike/conv1d-serialization.md`); the spec is
+  `fork/docs/conv1d-spec.md`.
+- The workspace skeleton and the simulator: FSM + signal synthesis +
+  determinism (one seed — a bit-identical CSV).
+- Hardware-track contracts: `window_spec` / calibration / capture in
+  `features-cli`, `SensorSource` in `nodes`, the `firmware/` skeleton.
 
-Дальше (недели 2–3): кернел `Conv1D` и парсер макроса по спеке,
-golden-тесты; затем узлы и MQTT (недели 4–5), QEMU LM3S6965 с бенчмарками
-criterion (неделя 6) — полный план в [`docs/plan.md`](./docs/plan.md).
+Next (weeks 2–3): the `Conv1D` kernel and the macro parser per the spec,
+golden tests; then nodes and MQTT (weeks 4–5), QEMU LM3S6965 with criterion
+benchmarks (week 6) — the full plan is in
+[`docs/eng/plan.md`](./docs/eng/plan.md) (Russian original:
+[`docs/rus/plan.md`](./docs/rus/plan.md)).

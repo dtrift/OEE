@@ -1,17 +1,18 @@
-"""Спайк Д3 (неделя 1): сериализация Keras Conv1D в .tflite.
+"""Spike D3 (week 1): Keras Conv1D serialization to .tflite.
 
-Строит модель по разд. 6 плана OEE:
-    Conv1D(8) -> AvgPool -> Conv1D(16) -> AvgPool -> FC -> Softmax, вход (T, C).
-Квантизация full-integer int8, дамп операторов через tf.lite.Interpreter.
+Builds the model from OEE plan section 6:
+    Conv1D(8) -> AvgPool -> Conv1D(16) -> AvgPool -> FC -> Softmax, input (T, C).
+Full-integer int8 quantization, operator dump via tf.lite.Interpreter.
 
-Веса не обучены — спайк про сериализацию, а не про точность (обучение: недели 3-4).
+Weights are untrained — the spike is about serialization, not accuracy
+(training: weeks 3-4).
 
-Запуск (от корня репо):
+Run (from the repo root):
     tmp/venv312/bin/python ml/scripts/build_conv1d_model.py
 
-Артефакты:
-    ml/models/conv1d.tflite     — квантованная модель
-    ml/models/conv1d_ops.txt    — дамп операторов и тензоров (факт для спеки)
+Artifacts:
+    ml/models/conv1d.tflite     — quantized model
+    ml/models/conv1d_ops.txt    — operator and tensor dump (a fact for the spec)
 """
 
 import pathlib
@@ -22,15 +23,16 @@ import tensorflow as tf
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 MODELS_DIR = REPO_ROOT / "ml" / "models"
 
-# Параметры окна сигнала тока: 128 отсчётов, 1 канал (моно-ток).
-# Выбор для спайка: ~80 мс при 1.6 кГц = 4 периода 50 Гц. Реальный выбор — недели 3-4.
+# Current-signal window parameters: 128 samples, 1 channel (mono current).
+# Spike choice: ~80 ms at 1.6 kHz = 4 periods of 50 Hz. The real choice is weeks 3-4.
 TIMESTEPS = 128
 CHANNELS = 1
 NUM_CLASSES = 4  # idle / run / jam / overload
 
 
-# Классы различаются амплитудой огибающей синуса 50 Гц — грубое приближение
-# будущего сигнала из разд. 4 плана; для репрезентативного датасета достаточно.
+# Classes differ in the amplitude of the 50 Hz sine envelope — a rough
+# approximation of the future signal from plan section 4; good enough for a
+# representative dataset.
 def _synthetic_current(rng: np.random.Generator, amplitude: float) -> np.ndarray:
     t = np.arange(TIMESTEPS, dtype=np.float32) / 1600.0
     signal = amplitude * np.sin(2 * np.pi * 50.0 * t)
@@ -86,7 +88,7 @@ def dump_operators(tflite_model: bytes) -> str:
             return f"#{idx} (optional/none)"
         t = tensors.get(idx)
         if t is None:
-            return f"#{idx} (не найден в tensor details)"
+            return f"#{idx} (not found in tensor details)"
         quant = t["quantization"]
         if quant is not None and (np.ndim(quant[0]) > 0 or quant[0]):
             q = f", scale={quant[0]}, zp={quant[1]}"
@@ -94,7 +96,7 @@ def dump_operators(tflite_model: bytes) -> str:
             q = ""
         return f"#{idx} {t['name']} shape={list(t['shape'])} dtype={t['dtype']}{q}"
 
-    lines = ["# Дамп операторов conv1d.tflite (факт сериализации, Д3 недели 1)", ""]
+    lines = ["# conv1d.tflite operator dump (serialization fact, week-1 item D3)", ""]
     for op in interpreter._get_ops_details():
         lines.append(f"op[{op['index']}] {op['op_name']}")
         for i in op["inputs"]:
@@ -102,7 +104,7 @@ def dump_operators(tflite_model: bytes) -> str:
         for o in op["outputs"]:
             lines.append(f"  out {fmt_tensor(o)}")
     lines.append("")
-    lines.append("# Глобальные вход/выход subgraph")
+    lines.append("# Global subgraph input/output")
     for i in interpreter.get_input_details():
         lines.append(f"  input  {fmt_tensor(i['index'])}")
     for o in interpreter.get_output_details():
@@ -111,7 +113,7 @@ def dump_operators(tflite_model: bytes) -> str:
 
 
 def sanity_check_inference(model: tf.keras.Model, tflite_model: bytes) -> None:
-    """Сверка .tflite против Keras: если bias/layout потерялись при конверсии — увидим."""
+    """Cross-check .tflite against Keras: if bias/layout got lost in conversion, we will see it."""
     interpreter = tf.lite.Interpreter(model_content=tflite_model)
     interpreter.allocate_tensors()
     inp = interpreter.get_input_details()[0]
@@ -132,7 +134,7 @@ def sanity_check_inference(model: tf.keras.Model, tflite_model: bytes) -> None:
         print(f"  keras argmax={ref.argmax()}, tflite argmax={got.argmax()}, "
               f"max|diff|={np.abs(ref - got).max():.4f}")
     print(f"sanity: max|diff|={max_diff:.4f} "
-          f"(порог 0.05 — квантование int8 без QAT даёт заметную погрешность)")
+          f"(threshold 0.05 — int8 quantization without QAT gives a noticeable error)")
 
 
 def main() -> None:
