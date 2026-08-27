@@ -1,11 +1,12 @@
-//! FSM станка: `idle → run → jam/overload` (разд. 4 плана).
+//! Machine FSM: `idle -> run -> jam/overload` (plan section 4).
 //!
-//! Переходы управляются декларативным сценарием (список событий с моментами
-//! времени) — сценарий же служит ground truth для оценки качества узлов.
+//! Transitions are driven by a declarative scenario (a list of events with
+//! time points) — the same scenario serves as ground truth for evaluating
+//! node quality.
 
 use serde::Deserialize;
 
-/// Режим станка. Порядок вариантов фиксирован: по нему сериализуется CSV.
+/// Machine mode. Variant order is fixed: CSV serialization follows it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub enum MachineState {
     Idle,
@@ -15,7 +16,7 @@ pub enum MachineState {
 }
 
 impl MachineState {
-    /// Стабильное строковое имя для CSV/логов (ground truth-колонка).
+    /// Stable string name for CSV/logs (ground-truth column).
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Idle => "idle",
@@ -26,7 +27,7 @@ impl MachineState {
     }
 }
 
-/// Событие сценария: в момент `t_ms` станок переходит в `state`.
+/// Scenario event: at time `t_ms` the machine switches to `state`.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct ScenarioEvent {
     pub t_ms: u32,
@@ -34,21 +35,19 @@ pub struct ScenarioEvent {
 }
 
 impl ScenarioEvent {
-    /// Валидация: события должны быть строго по возрастанию времени
-    /// (иначе сценарий физически не воспроизводим).
+    /// Validation: events must be strictly time-increasing
+    /// (otherwise the scenario is physically unreproducible).
     pub fn validate(events: &[ScenarioEvent]) -> Result<(), String> {
         let Some(first) = events.first() else {
             return Ok(());
         };
         if first.t_ms < 1 {
-            return Err(
-                "первое событие раньше t=1 мс (стартовое состояние задайте как idle)".into(),
-            );
+            return Err("first event earlier than t=1 ms (set the initial state as idle)".into());
         }
         events.windows(2).try_for_each(|pair| {
             if pair[0].t_ms >= pair[1].t_ms {
                 Err(format!(
-                    "события не по возрастанию времени: {} мс затем {} мс",
+                    "events not in increasing time order: {} ms then {} ms",
                     pair[0].t_ms, pair[1].t_ms
                 ))
             } else {

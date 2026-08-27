@@ -1,31 +1,32 @@
-//! Контракт источника данных узла (разд. 2 плана: «что заменило железо»).
+//! Node data-source contract (plan section 2: "what replaces the hardware").
 //!
-//! Один trait для двух колей разработки: `SimSource` на хосте (неделя 4,
-//! читает поток симулятора) и сенсорные источники прошивки (`AdcSource` —
-//! ACS712 через ADC1, `I2sSource` — INMP441, `GpioEdgeSource` — TCRT5000).
+//! One trait for both development tracks: `SimSource` on the host (week 4,
+//! reads the simulator stream) and firmware sensor sources (`AdcSource` —
+//! ACS712 via ADC1, `I2sSource` — INMP441, `GpioEdgeSource` — TCRT5000).
 //!
-//! Контракт сознательно no_std-совместим: без аллокаций, `String` и
-//! `anyhow` — чтобы при извлечении ядра узла в прошивку (недели 4–5)
-//! trait переехал без изменений.
+//! The contract is deliberately no_std-compatible: no allocations, `String`,
+//! or `anyhow` — so that when the node core moves into firmware (weeks 4-5)
+//! the trait carries over unchanged.
 
-/// Ошибка источника: поток исчерпан или отказ сенсорного тракта.
+/// Source error: the stream is exhausted or the sensor path failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceError {
-    /// Источник закончился (симулятор — по длительности сценария).
+    /// The source has ended (for the simulator, at scenario duration).
     Exhausted,
-    /// Отказ сенсорного тракта; строка — место отказа, без аллокации.
+    /// Sensor-path failure; the string is the failure location, allocation-free.
     Sensor(&'static str),
 }
 
-/// Поток отсчётов узла: симулятор (хост) или сенсор (прошивка).
+/// Node sample stream: simulator (host) or sensor (firmware).
 ///
-/// Узел не знает, откуда данные: пайплайн «фичи → predict → публикация»
-/// один и тот же для SimSource (хост) и железных источников (прошивка).
+/// The node does not know where the data comes from: the "features ->
+/// predict -> publish" pipeline is the same for SimSource (host) and
+/// hardware sources (firmware).
 pub trait SensorSource {
-    /// Тип отсчёта: ток в амперах, сырой отсчёт ADC, фронт IR-барьера...
+    /// Sample type: current in amps, raw ADC count, IR-barrier edge...
     type Sample;
 
-    /// Следующий отсчёт потока.
+    /// The next sample of the stream.
     fn next_sample(&mut self) -> Result<Self::Sample, SourceError>;
 }
 
@@ -33,7 +34,7 @@ pub trait SensorSource {
 mod tests {
     use super::*;
 
-    /// Простейший источник для проверки формы контракта.
+    /// Simplest source to check the contract shape.
     struct Countdown(u32);
 
     impl SensorSource for Countdown {

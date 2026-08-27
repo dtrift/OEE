@@ -1,8 +1,8 @@
-//! Интеграционный тест симулятора: полный прогон сценария → CSV → повтор → diff.
+//! Simulator integration test: full scenario run -> CSV -> repeat -> diff.
 
 use std::process::Command;
 
-/// Два прогона с одним seed дают побитово одинаковый CSV (гейт недели 1).
+/// Two runs with the same seed produce a bit-identical CSV (week-1 gate).
 #[test]
 fn deterministic_csv() {
     let bin = env!("CARGO_BIN_EXE_line-simulator");
@@ -27,17 +27,14 @@ fn deterministic_csv() {
     out(b.to_str().unwrap());
     let csv_a = std::fs::read(&a).expect("read a");
     let csv_b = std::fs::read(&b).expect("read b");
-    assert_eq!(
-        csv_a, csv_b,
-        "два прогона с seed=42 обязаны совпасть побитово"
-    );
+    assert_eq!(csv_a, csv_b, "two runs with seed=42 must match bit-for-bit");
 
-    // Смоук: заголовок и непустое тело.
+    // Smoke: header and non-empty body.
     let text = String::from_utf8(csv_a).unwrap();
     assert!(text.starts_with("t_ms,current_a,state\n"));
     assert!(
         text.lines().count() > 90_000,
-        "слишком мало строк: {}",
+        "too few lines: {}",
         text.lines().count()
     );
 }

@@ -1,5 +1,5 @@
-# Сценарий «деградация»: эпизоды jam/overload нарастают к концу прогона.
-# Датасет-заготовка недель 3–4 (узел A: классификация режимов).
+# "Degradation" scenario: jam/overload episodes ramp up towards the end of the run.
+# Dataset seed material for weeks 3-4 (node A: mode classification).
 
 duration_ms = 60000
 

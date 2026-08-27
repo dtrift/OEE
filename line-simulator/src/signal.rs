@@ -1,8 +1,8 @@
-//! Синтез сигнала тока: несущая 50 Гц + гармоники + огибающая по режиму +
-//! медленный дрейф амплитуды + шум (seeded RNG) — разд. 4 плана.
+//! Current-signal synthesis: 50 Hz carrier + harmonics + per-mode envelope +
+//! slow amplitude drift + noise (seeded RNG) — plan section 4.
 //!
-//! Детерминизм: при одном seed последовательность вызовов [`SignalGenerator::sample`]
-//! (t строго возрастает) даёт побитово одинаковый сигнал.
+//! Determinism: with one seed, a sequence of [`SignalGenerator::sample`]
+//! calls (t strictly increasing) yields a bit-identical signal.
 
 use rand::Rng;
 use rand_distr::Normal;
@@ -10,19 +10,20 @@ use rand_distr::Normal;
 use crate::fsm::MachineState;
 use crate::scenario::{Envelope, Noise, Signal};
 
-/// Частота сети, Гц.
+/// Mains frequency, Hz.
 pub const MAINS_HZ: f32 = 50.0;
 
-/// Генератор сигнала тока: хранит параметры формы и текущий дрейф амплитуды.
+/// Current-signal generator: holds shape parameters and the current
+/// amplitude drift.
 ///
-/// Дрейф — множитель амплитуды, обновляемый раз за период сети (20 мс):
-/// медленное блуждание вокруг номинала огибающей. Именно оно не даёт классам
-/// режимов стать «идеально разделимыми» (риск разд. 11 плана).
+/// Drift is an amplitude multiplier refreshed once per mains period (20 ms):
+/// a slow wander around the envelope nominal. It is exactly what keeps mode
+/// classes from becoming "perfectly separable" (plan section 11 risk).
 pub struct SignalGenerator {
     signal: Signal,
-    /// Текущий множитель амплитуды (1.0 = номинал).
+    /// Current amplitude multiplier (1.0 = nominal).
     drift: f32,
-    /// Индекс последнего обслуженного периода сети (u64::MAX — ещё ни одного).
+    /// Index of the last served mains period (u64::MAX — none yet).
     last_period: u64,
 }
 
@@ -35,11 +36,11 @@ impl SignalGenerator {
         }
     }
 
-    /// Синтез одного отсчёта тока в момент `t` (с) для режима `state`.
+    /// Synthesizes one current sample at time `t` (s) for mode `state`.
     ///
-    /// Контракт: `t` строго возрастает между вызовами (поток симулятора);
-    /// при нарушении дрейф перестаёт обновляться, но детерминизм прогона
-    /// не страдает — он и так обеспечивается последовательным потоком.
+    /// Contract: `t` strictly increases across calls (simulator stream);
+    /// if violated, drift stops updating, but run determinism is unharmed —
+    /// it is guaranteed by the sequential stream anyway.
     pub fn sample(
         &mut self,
         t: f32,
@@ -68,7 +69,7 @@ impl SignalGenerator {
     }
 }
 
-/// RMS окна отсчётов — грубая фича разделимости режимов (разд. 4, 10 плана).
+/// RMS of a sample window — a rough mode-separability feature (plan sections 4, 10).
 pub fn window_rms(window: &[f32]) -> f32 {
     let sum = window.iter().map(|s| s * s).sum::<f32>();
     (sum / window.len() as f32).sqrt()
@@ -98,7 +99,7 @@ mod tests {
         )
     }
 
-    /// Один seed → побитово одинаковый сигнал (гейт недели 1, сохранён).
+    /// One seed -> bit-identical signal (week-1 gate, preserved).
     #[test]
     fn deterministic_given_seed() {
         let (envelope, noise, signal) = env();
@@ -120,7 +121,7 @@ mod tests {
         assert_ne!(a, gen(43));
     }
 
-    /// Дрейф амплитуды: пики разных периодов внутри одного режима различаются.
+    /// Amplitude drift: peaks of different periods within one mode differ.
     #[test]
     fn drift_varies_amplitude_within_mode() {
         let (envelope, noise, signal) = env();
@@ -140,20 +141,20 @@ mod tests {
         let max = peak_amplitudes.iter().cloned().fold(f32::MIN, f32::max);
         assert!(
             max - min > 0.01,
-            "амплитуда не гуляет: min={min}, max={max}"
+            "amplitude does not wander: min={min}, max={max}"
         );
     }
 
-    /// Разделимость режимов: средние RMS окон (128 отсчётов — будущее окно
-    /// CNN) различаются между режимами, но окна внутри режима неодинаковы —
-    /// «различимо, но не идеально» (разд. 4 плана).
+    /// Mode separability: mean window RMS values (128 samples — the future
+    /// CNN window) differ across modes, yet windows within a mode are not
+    /// identical — "distinguishable, but not perfectly" (plan section 4).
     #[test]
     fn rms_windows_separate_modes_but_vary_within() {
         let (envelope, noise, signal) = env();
         let window = |state: MachineState, seed: u64| -> Vec<f32> {
             let mut generator = SignalGenerator::new(signal);
             let mut rng = StdRng::seed_from_u64(seed);
-            (0..64) // 64 окна по 128 отсчётов ≈ 5.1 с
+            (0..64) // 64 windows of 128 samples ≈ 5.1 s
                 .map(|w| {
                     window_rms(
                         &(0..128)
@@ -173,23 +174,23 @@ mod tests {
         let mean_jam = mean(&jam);
         assert!(
             mean_jam > mean_run * 1.4,
-            "run vs jam: средние RMS не различаются: run={mean_run}, jam={mean_jam}"
+            "run vs jam: mean RMS values do not differ: run={mean_run}, jam={mean_jam}"
         );
         let spread = |v: &[f32], m: f32| {
             (v.iter().map(|x| (x - m) * (x - m)).sum::<f32>() / v.len() as f32).sqrt()
         };
         assert!(
             spread(&run, mean_run) > 1e-3,
-            "окна run одинаковы — классы слишком чистые"
+            "run windows are identical — classes are too clean"
         );
         assert!(
             spread(&jam, mean_jam) > 1e-3,
-            "окна jam одинаковы — классы слишком чистые"
+            "jam windows are identical — classes are too clean"
         );
     }
 
-    /// Режимы различаются по пиковой амплитуде (сохранённый тест недели 1,
-    /// устойчив к дрейфу: пик берётся за 20 периодов, rng у режимов независимые).
+    /// Modes differ in peak amplitude (preserved week-1 test, robust to
+    /// drift: the peak is taken over 20 periods, rngs are independent per mode).
     #[test]
     fn modes_differ_in_amplitude() {
         let (envelope, noise, signal) = env();

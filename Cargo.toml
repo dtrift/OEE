@@ -6,8 +6,8 @@ members = [
     "oee-aggregator",
     "features-cli",
 ]
-# fork/microflow — отдельный workspace (свой [workspace] и [patch]);
-# подключается path-зависимостью, в members не входит.
+# fork/microflow is a separate workspace (its own [workspace] and [patch]);
+# it is wired in as a path dependency and is not a member here.
 
 [workspace.package]
 edition = "2021"
@@ -23,10 +23,11 @@ csv = "1.3"
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 
-# Патч nalgebra из форка microflow: [patch] из манифеста path-зависимости
-# игнорируется — продублировать здесь, когда крейты workspace начнут зависеть
-# от fork/microflow (неделя 3, узлы). Пока зависимости нет — патч даёт warning
-# «was not used» и закомментирован.
+# The nalgebra patch from the microflow fork: [patch] sections of a path
+# dependency's manifest are ignored — duplicate it here once workspace crates
+# start depending on fork/microflow (week 3, nodes). Until that dependency
+# exists the patch would only produce a "was not used" warning, so it stays
+# commented out.
 # [patch.crates-io]
 # nalgebra = { git = "https://github.com/matteocarnelos/nalgebra" }
 

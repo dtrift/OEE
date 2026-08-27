@@ -6,12 +6,12 @@ on:
     branches: [main, master]
 
 jobs:
-  # Workspace OEE: line-simulator, nodes, oee-aggregator, features-cli.
-  # Подмодуль форка для сборки workspace не нужен (path-зависимости появятся в неделе 3).
+  # OEE workspace: line-simulator, nodes, oee-aggregator, features-cli.
+  # The fork submodule is not needed to build the workspace (path dependencies arrive in week 3).
   workspace:
     runs-on: ubuntu-latest
     steps:
-      # v6 использует Node.js 24 (избегает deprecation Node 20 на GitHub-раннерах)
+      # v6 uses Node.js 24 (avoids the Node 20 deprecation on GitHub runners)
       - uses: actions/checkout@v6
 
       - name: Install Rust
@@ -30,10 +30,10 @@ jobs:
 
       - name: Tests
         run: cargo test --workspace
-        # Включает интеграционный тест детерминизма симулятора (два прогона → diff пуст).
+        # Includes the simulator determinism integration test (two runs -> empty diff).
 
-  # Форк microflow-rs: сборка, тесты, примеры #[model] на хосте.
-  # Отдельный job: свой workspace, свои зависимости (nalgebra через git-pатч).
+  # microflow-rs fork: build, tests, #[model] examples on the host.
+  # Separate job: its own workspace and dependencies (nalgebra via a git patch).
   fork:
     runs-on: ubuntu-latest
     defaults:
@@ -57,15 +57,15 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      # mismatched_lifetime_syntaxes — известный warn в сгенерированном
-      # апстримом tflite_generated.rs (линт нового rustc); остальное — строго.
+      # mismatched_lifetime_syntaxes is a known warning in the upstream-generated
+      # tflite_generated.rs (a new rustc lint); everything else is strict.
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings -A mismatched_lifetime_syntaxes
 
       - name: Tests
         run: cargo test --release
 
-      # Функциональный смоук: predict() на хосте (гейт недели 1).
+      # Functional smoke: predict() on the host (week-1 gate).
       - name: Run examples (sine, dense_spike)
         run: |
           cargo run --release --example sine

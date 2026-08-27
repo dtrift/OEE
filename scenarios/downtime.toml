@@ -1,5 +1,5 @@
-# Сценарий «простои»: долгие idle-периоды чередуются с короткими run.
-# Датасет-заготовка недель 3–4 (узел A: классификация режимов).
+# "Downtime" scenario: long idle periods alternate with short runs.
+# Dataset seed material for weeks 3-4 (node A: mode classification).
 
 duration_ms = 60000
 

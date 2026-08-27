@@ -1,6 +1,6 @@
-//! Узел P: IR-барьер → детектор фронта → счёт деталей.
+//! Node P: IR barrier -> edge detector -> part counting.
 
-/// Назначение узла (заглушка недели 1; контракт уточнится в неделе 5).
+/// Node purpose (week-1 stub; the contract will be refined in week 5).
 pub fn describe() -> &'static str {
     "node P: ir barrier -> edge detect -> count"
 }
