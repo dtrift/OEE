@@ -42,7 +42,7 @@
 1. Ветки: `feat/conv1d-parser-codegen` в `fork/microflow`, `feat/parser-codegen-ml`
    в OEE.
 2. Перечитать спеку §2 (парсер), §4 (кодеген); под рукой — дамп операторов
-   `ml/models/conv1d_ops.txt` и [`spike/conv1d-serialization.md`](../../spike/conv1d-serialization.md).
+   `ml/models/conv1d_ops.txt` и [`spike/conv1d-serialization.md`](../../../spike/conv1d-serialization.md).
 3. Проверить статус §3.3 (FC per-channel + optional bias): если буфер Д4 недели 2
    не закрыл — учесть в Д2 (кодеген обязан поддержать QUANTS > 1 у FC).
 
@@ -121,7 +121,7 @@ CONV_2D, AVERAGE_POOL_2D, FULLY_CONNECTED, SOFTMAX.
    (±1 квант).
 2. Мост недели 4: подключить path-зависимость `nodes → fork/microflow` и
    раскомментировать `[patch.crates-io] nalgebra` в корневом `Cargo.toml`
-   (нюанс из [`fork/NOTES.md`](../../fork/NOTES.md), Д1); `cargo test` в обоих
+   (нюанс из [`fork/NOTES.md`](../../../fork/NOTES.md), Д1); `cargo test` в обоих
    workspace зелёный.
 3. Черновая confusion matrix A (разд. 10).
 

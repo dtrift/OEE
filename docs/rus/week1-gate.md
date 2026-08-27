@@ -7,13 +7,13 @@
 
 ## Чеклист гейта
 
-| Пункт гейта                                           | Статус | Артефакт / проверка                                                                       |
-| ----------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------- |
-| `predict()` на хосте (`sine`); бонус — dense-модель   | да     | [NOTES.md](../fork/NOTES.md) (Д1); [спайк-док](../spike/conv1d-serialization.md), «Бонус» |
-| Спека `Conv1D` достаточна для реализации без домыслов | да     | [conv1d-spec.md](../fork/docs/conv1d-spec.md)                                             |
-| Форк собирается, `cargo test` зелёный                 | да     | 25 lib + 3 integration; NOTES.md, Д1; перепроверено 2026-08-25                            |
-| Сериализация `Conv1D` задокументирована дампом ops    | да     | [conv1d-serialization.md](../spike/conv1d-serialization.md)                               |
-| Каркас workspace собирается; детерминированный CSV    | да     | 22 теста + clippy; [determinism.rs](../line-simulator/tests/determinism.rs)               |
+| Пункт гейта                                           | Статус | Артефакт / проверка                                                                             |
+| ----------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| `predict()` на хосте (`sine`); бонус — dense-модель   | да     | [NOTES.md](../../fork/NOTES.md) (Д1); [спайк-док](../../spike/conv1d-serialization.md), «Бонус» |
+| Спека `Conv1D` достаточна для реализации без домыслов | да     | [conv1d-spec.md](../../fork/docs/conv1d-spec.md)                                                |
+| Форк собирается, `cargo test` зелёный                 | да     | 25 lib + 3 integration; NOTES.md, Д1; перепроверено 2026-08-25                                  |
+| Сериализация `Conv1D` задокументирована дампом ops    | да     | [conv1d-serialization.md](../../spike/conv1d-serialization.md)                                  |
+| Каркас workspace собирается; детерминированный CSV    | да     | 22 теста + clippy; [determinism.rs](../../line-simulator/tests/determinism.rs)                  |
 
 ## Риски (разд. 11 плана)
 
