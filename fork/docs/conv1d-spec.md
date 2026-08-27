@@ -1,181 +1,205 @@
-# Спека: Conv1D для microflow-rs (контракт недель 2–3)
+# Spec: Conv1D for microflow-rs (the week 2–3 contract)
 
-> Написана по итогам спайка Д3 (факты — [`spike/conv1d-serialization.md`](../../spike/conv1d-serialization.md)).
-> Критерий готовности: «сторонний разработчик реализует по спеке без вопросов».
-> Изменение фактов сериализации (другая версия TF) → сначала обновить спайк-док, потом эту спеку.
+> Written from the results of the D3 spike (facts —
+> [`spike/conv1d-serialization.md`](../../spike/conv1d-serialization.md)).
+> Readiness criterion: "a third-party developer implements from the spec
+> without questions".
+> If the serialization facts change (a different TF version) → update the
+> spike doc first, then this spec.
 
-## 1. Входные данные (факт из Д3)
+## 1. Input data (facts from D3)
 
-Модель: Keras `Conv1D(8,k=3) → ReLU → AvgPool(2) → Conv1D(16,k=3) → ReLU →
-AvgPool(2) → Flatten → Dense(4) → Softmax`, вход `(128, 1)`, full-int8, TF 2.21.
+Model: Keras `Conv1D(8,k=3) → ReLU → AvgPool(2) → Conv1D(16,k=3) → ReLU →
+AvgPool(2) → Flatten → Dense(4) → Softmax`, input `(128, 1)`, full-int8,
+TF 2.21.
 
-Факты, на которые опирается всё ниже:
+Facts that everything below rests on:
 
-- F1. Вход subgraph — rank-3 `(1, T, C)`.
-- F2. Conv1D-блок = `EXPAND_DIMS(axis=-3) → CONV_2D → RESHAPE([-1, T', F])`.
-- F3. AvgPool-блок = `EXPAND_DIMS → AVERAGE_POOL_2D → RESHAPE`.
-- F4. Flatten = `SHAPE → STRIDED_SLICE → PACK → RESHAPE` (динамическая форма,
-  для нас — статическая).
-- F5. CONV_2D веса — OHWI `(F, 1, k, C)`, per-channel (F scale'ов, zp=0);
-  bias — `(F,)` int32, per-channel (scale_b = scale_in × scale_w[f]).
-- F6. FC: веса `(Out, In)` per-channel (по умолчанию), bias optional:
-  нулевой выбрасывается конвертером (вход −1).
-- F7. Активации — per-tensor (1 scale); fused RELU в опциях CONV_2D.
+- F1. The subgraph input is rank-3 `(1, T, C)`.
+- F2. A Conv1D block = `EXPAND_DIMS(axis=-3) → CONV_2D → RESHAPE([-1, T', F])`.
+- F3. An AvgPool block = `EXPAND_DIMS → AVERAGE_POOL_2D → RESHAPE`.
+- F4. Flatten = `SHAPE → STRIDED_SLICE → PACK → RESHAPE` (a dynamic shape;
+  static for us).
+- F5. CONV_2D weights are OHWI `(F, 1, k, C)`, per-channel (F scales, zp=0);
+  the bias is `(F,)` int32, per-channel (scale_b = scale_in × scale_w[f]).
+- F6. FC: weights `(Out, In)` per-channel (by default), the bias optional:
+  a zero one is dropped by the converter (a −1 input).
+- F7. Activations are per-tensor (1 scale); fused RELU in the CONV_2D
+  options.
 
-Целевая вертикаль: парсер (microflow-macros) → кодеген → кернел (runtime).
+Target vertical: parser (microflow-macros) → codegen → kernel (runtime).
 
-## 2. Парсер (неделя 3, microflow-macros)
+## 2. Parser (week 3, microflow-macros)
 
-### 2.1 Нормализация графа (до генерации слоёв)
+### 2.1 Graph normalization (before layer generation)
 
-Граф проходит пасс «свёртки формы» (shape-folding):
+The graph goes through a "shape-folding" pass:
 
-1. `EXPAND_DIMS(x, axis)` → виртуальный reshape: форма входа + ось.
-2. `RESHAPE(x, [-1, a, b])` и `RESHAPE(x, [a, b, c])` → виртуальный reshape;
-   `-1` вычисляется из произведения остальных (ошибка, если не делится нацело).
-3. `SHAPE → STRIDED_SLICE → PACK → RESHAPE` (цепочка Flatten) — вычисляется
-   статически: результат `PACK` известен из форм; вся цепочка заменяется
-   одним виртуальным reshape `(1, T'', F'') → (1, T''*F'')`.
+1. `EXPAND_DIMS(x, axis)` → a virtual reshape: the input shape + the axis.
+2. `RESHAPE(x, [-1, a, b])` and `RESHAPE(x, [a, b, c])` → a virtual
+   reshape; `-1` is computed from the product of the rest (an error if it
+   does not divide evenly).
+3. `SHAPE → STRIDED_SLICE → PACK → RESHAPE` (the Flatten chain) — computed
+   statically: the `PACK` result is known from the shapes; the whole chain
+   is replaced by one virtual reshape `(1, T'', F'') → (1, T''*F'')`.
 
-Правила пасса:
+Pass rules:
 
-- Пасс работает по списку операторов последовательно, ведёт таблицу
-  «тензор → виртуальная форма». Операторы формы не порождают код.
-- Виртуальные reshape'и применяются к следующему «настоящему» оператору
-  (CONV_2D, AVERAGE_POOL_2D, FULLY_CONNECTED, SOFTMAX): его вход получает
-  финальную форму из таблицы.
-- Если reshape-цепочка сводит данные к rank ≤ 2 перед FC — это нормальный
-  путь Flatten (см. F4).
-- Всё, что не сворачивается (например, PACK с неизвестными значениями) —
-  `abort_call_site!` с внятным сообщением: какой op, какая форма, что ожидаем.
+- The pass walks the operator list sequentially, keeping a "tensor →
+  virtual shape" table. Shape operators produce no code.
+- Virtual reshapes are applied to the next "real" operator (CONV_2D,
+  AVERAGE_POOL_2D, FULLY_CONNECTED, SOFTMAX): its input gets the final
+  shape from the table.
+- If a reshape chain reduces the data to rank ≤ 2 before FC — that is the
+  normal Flatten path (see F4).
+- Anything that does not fold (e.g. PACK with unknown values) —
+  `abort_call_site!` with a clear message: which op, which shape, what was
+  expected.
 
-### 2.2 Rank-3 вход/выход макроса
+### 2.2 Rank-3 macro input/output
 
-- Вход `(1, T, C)` принимается и нормализуется до `(1, 1, T, C)` (rank-4,
-  h=1). Пользовательский API при этом — `Buffer2D<f32, T, C>` (данные те же,
-  форма представления — 2D, как у rank-3 тензора (1, T, C) после сжатия
-  batch-оси).
-- Выход rank-3 `(1, K)` аналогично → `Buffer2D<f32, 1, K>`.
-- Правило: batch-ось (первая, =1) не попадает в пользовательский тип;
-  внутренние представления — только rank-4 `(1, 1, T, C)` для свёрток и
-  rank-2 для FC/softmax.
+- The input `(1, T, C)` is accepted and normalized to `(1, 1, T, C)`
+  (rank-4, h=1). The user-facing API is `Buffer2D<f32, T, C>` (the data is
+  the same; the representation shape is 2D, like the rank-3 tensor (1, T, C)
+  after squeezing the batch axis).
+- The rank-3 output `(1, K)` similarly → `Buffer2D<f32, 1, K>`.
+- Rule: the batch axis (the first one, =1) does not enter the user type;
+  internal representations are only rank-4 `(1, 1, T, C)` for convolutions
+  and rank-2 for FC/softmax.
 
-### 2.3 Операторы
+### 2.3 Operators
 
-- `EXPAND_DIMS`: вход + скаляр axis; только форма, данных не касается.
-- `RESHAPE`: второй вход — константный int32-вектор (считывается из буфера
-  тензора), опции `new_shape` игнорируются, если вход задан.
-- `SHAPE`, `STRIDED_SLICE`, `PACK`: только внутри сворачиваемой цепочки
-  Flatten; вне её — unsupported.
-- `CONV_2D` с фильтрами `(F, 1, k, C)`: валидация `h == 1` — иначе это не
-  1D-случай, отдать существующему пути conv_2d (без изменений его логики).
-- `FULLY_CONNECTED`: `inputs.len() == 2` → bias отсутствует (F6): в кодеген
-  передаётся нулевой bias (константный вектор длины Out). Weighted layout
-  `(Out, In)` — как сейчас.
-- `AVERAGE_POOL_2D` с фильтром `(1, p)`: h=1 — существующий путь при
-  4D-представлении подходит.
+- `EXPAND_DIMS`: input + a scalar axis; shape only, does not touch the
+  data.
+- `RESHAPE`: the second input is a constant int32 vector (read from the
+  tensor's buffer); the `new_shape` options are ignored if the input is
+  set.
+- `SHAPE`, `STRIDED_SLICE`, `PACK`: only inside the foldable Flatten chain;
+  outside it — unsupported.
+- `CONV_2D` with filters `(F, 1, k, C)`: validate `h == 1` — otherwise it
+  is not the 1D case; hand it to the existing conv_2d path (without
+  changing its logic).
+- `FULLY_CONNECTED`: `inputs.len() == 2` → no bias (F6): a zero bias is
+  passed to codegen (a constant vector of length Out). The weights layout
+  `(Out, In)` — as now.
+- `AVERAGE_POOL_2D` with a `(1, p)` filter: h=1 — the existing path with
+  the 4D representation fits.
 
-### 2.4 Квантование
+### 2.4 Quantization
 
-- Веса CONV_2D: per-channel обязателен (F5) — уже поддержан структурой
-  `TokenTensor4D` (QUANTS = F).
-- Веса FC: per-channel (F6) — добавить поддержку QUANTS > 1 в runtime
-  `fully_connected` (см. §3.3) или зафиксировать per-tensor в конвертере
-  проекта (обход `_experimental_disable_per_channel`). Решение недели 3:
-  поддержать per-channel в runtime (правильный путь), в ml-скриптах —
-  переключаемый флаг.
-- Bias int32 per-channel: scale_b[f] читается из тензора bias напрямую.
+- CONV_2D weights: per-channel is mandatory (F5) — already supported by the
+  `TokenTensor4D` structure (QUANTS = F).
+- FC weights: per-channel (F6) — either add QUANTS > 1 support to the
+  `fully_connected` runtime (see §3.3), or pin per-tensor in the project's
+  converter (the `_experimental_disable_per_channel` workaround). The
+  week-3 decision: support per-channel in the runtime (the right way); in
+  the ml scripts — a switchable flag.
+- The int32 per-channel bias: scale_b[f] is read from the bias tensor
+  directly.
 
-## 3. Кернел (неделя 2, runtime `microflow::ops`)
+## 3. Kernel (week 2, the `microflow::ops` runtime)
 
-### 3.1 Семантика conv_1d
+### 3.1 conv_1d semantics
 
-Вход: `Tensor4D<T, 1, 1, T, C, 1>` (h=1). Веса: OHWI `(F, 1, k, C)`,
-per-channel. Выход: `(1, 1, T_out, F)`.
+Input: `Tensor4D<T, 1, 1, T, C, 1>` (h=1). Weights: OHWI `(F, 1, k, C)`,
+per-channel. Output: `(1, 1, T_out, F)`.
 
 ```text
-acc(i32) = Σ_{t,c} (x[t,c] - zp_x) * (w[f,0,t,c] - zp_w[f])   [dot по окну k]
-raw(f, t) = acc + bias[f]                                       [bias уже в единицах acc]
+acc(i32) = Σ_{t,c} (x[t,c] - zp_x) * (w[f,0,t,c] - zp_w[f])   [dot over the k window]
+raw(f, t) = acc + bias[f]                                       [bias already in acc units]
 out(f, t) = saturate_i8( round_ties_even( raw(f,t) * m(f) ) + zp_out )
 m(f) = (scale_x * scale_w[f]) / scale_out                        [per-channel multiplier]
 ```
 
-- Аккумулятор — **i32** (переполнение невозможно при T·C ≤ 2^16 и |x−zp| ≤ 255:
-  max 255·255·2^16 < 2^31 — проверить ассертами на этапе кодегена).
-- Requant — per-channel множитель `m(f)`. Приведение к i8 — через
-  `(acc as f32 * m(f)).round_ties_even() + zp_out`, затем `clamp(-128, 127)`.
-- Округление: `round_ties_even` (banker's), зафиксировано для reference и
-  кернела одинаково (см. §5).
-- Fused activation (RELU из опций CONV_2D) применяется к выходу ДО записи:
-  relu(x) = max(x, zp_out) в квантованных координатах.
+- The accumulator is **i32** (overflow is impossible with T·C ≤ 2^16 and
+| x−zp | ≤ 255: max 255·255·2^16 < 2^31 — check with asserts at codegen |
+  time).
+- Requant is a per-channel multiplier `m(f)`. The conversion to i8 is via
+  `(acc as f32 * m(f)).round_ties_even() + zp_out`, then
+  `clamp(-128, 127)`.
+- Rounding: `round_ties_even` (banker's), pinned identically for the
+  reference and the kernel (see §5).
+- The fused activation (RELU from the CONV_2D options) is applied to the
+  output BEFORE storing: relu(x) = max(x, zp_out) in quantized coordinates.
 
-### 3.2 Геометрия
+### 3.2 Geometry
 
-- `stride` — по оси времени (w); `padding`: `valid` — окна от 0,
-  `same` — симметричный паддинг, выход `ceil(T/stride)`, паддинг нулями
-  В КВАНТОВАННЫХ КООРДИНАТАХ: значение = zp_x (не 0!).
-- `T < k`: valid → пустой выход (ошибка на этапе кодегена: выход с нулевой
-  осью запрещён); same → выход длины ceil(T/stride), окна дополняются zp_x.
-- `T_out(valid) = floor((T - k)/stride) + 1` — при `T < k` и stride > 1
-  формулы не должны давать 0 без проверки.
+- `stride` is along the time axis (w); `padding`: `valid` — windows from 0;
+  `same` — symmetric padding, the output is `ceil(T/stride)`, padding with
+  zeros IN QUANTIZED COORDINATES: the value is zp_x (not 0!).
+- `T < k`: valid → an empty output (a codegen-time error: an output with a
+  zero axis is forbidden); same → an output of length ceil(T/stride), the
+  windows padded with zp_x.
+- `T_out(valid) = floor((T - k)/stride) + 1` — with `T < k` and stride > 1
+  the formulas must not produce 0 without a check.
 
-### 3.3 Расширение fully_connected (per-channel)
+### 3.3 The fully_connected extension (per-channel)
 
-Сигнатура runtime меняется с `QUANTS=1` на generic `QUANTS` (как у conv_2d):
-константы requant считаются per-channel в препроцессинге макроса. Bias
-optional (нулевая константа при отсутствии) — §2.3.
+The runtime signature changes from `QUANTS=1` to a generic `QUANTS` (as in
+conv_2d): the requant constants are computed per-channel in the macro's
+preprocessing. The bias is optional (a zero constant when absent) — §2.3.
 
-## 4. Кодеген (неделя 3, microflow-macros)
+## 4. Codegen (week 3, microflow-macros)
 
-1. После нормализации §2.1 граф состоит из: CONV_2D(h=1), AVERAGE_POOL_2D(h=1),
-   FULLY_CONNECTED, SOFTMAX — генерация как сейчас, плюс:
-2. Вход модели rank-3 → `predict()` принимает `Buffer2D<f32, T, C>` и
-   внутренне разворачивает в `(1,1,T,C)` (нулевое копирование: те же данные,
-   другая логическая форма).
-3. Выход rank-3 `(1, K)` → аналогичное сжатие в `Buffer2D<f32, 1, K>`.
-4. Для FC без bias: константный нулевой bias-вектор длины Out (int32, zp=0).
-5. Ассерты кодегена: `h == 1` у свёрток/пулов; `T ≥ k` при valid; размеры
-   буферов совпадают с произведением форм.
-6. `target/microflow-expansion.rs` по-прежнему пишется — им тестируем кодеген.
+1. After the §2.1 normalization the graph consists of: CONV_2D(h=1),
+   AVERAGE_POOL_2D(h=1), FULLY_CONNECTED, SOFTMAX — generation as now,
+   plus:
+2. A rank-3 model input → `predict()` takes `Buffer2D<f32, T, C>` and
+   internally expands it to `(1,1,T,C)` (zero-copy: the same data, a
+   different logical shape).
+3. A rank-3 output `(1, K)` → the same squeeze into `Buffer2D<f32, 1, K>`.
+4. For FC without a bias: a constant zero bias vector of length Out
+   (int32, zp=0).
+5. Codegen asserts: `h == 1` for convolutions/pools; `T ≥ k` for valid;
+   buffer sizes match the product of the shapes.
+6. `target/microflow-expansion.rs` is still written — we test codegen with
+   it.
 
-## 5. Тесты (недели 2–3)
+## 5. Tests (weeks 2–3)
 
-### 5.1 Toy-тест (руки, Д1 недели 2)
+### 5.1 Toy test (by hand, D1 of week 2)
 
-1 канал, kernel 3, stride 1, valid, T=5; вход/веса/выход посчитаны вручную
-(включая zp и scale) — сверка бит-в-бит.
+1 channel, kernel 3, stride 1, valid, T=5; the input/weights/output are
+computed by hand (including zp and scale) — a bit-for-bit comparison.
 
-### 5.2 Golden-тесты (Rust-reference, Д3 недели 2)
+### 5.2 Golden tests (a Rust reference, D3 of week 2)
 
-- Reference-реализация: наивный Rust по формулам §3.1 (без оптимизаций,
-  i32-аккумулятор, `round_ties_even`); живёт в тестовой инфраструктуре.
-- Генератор `golden-gen` (bin в форке): пишет fixtures — человекочитаемые
-  файлы (вход, веса, bias, квант-параметры, ожидаемый выход).
-- Кейсы: T 1–64, каналы 1–8, kernel 1–7, stride 1–2, valid/same — ~100 штук;
-  детерминированный seed.
-- Сверка **бит-в-бит** (допуска нет: та же целочисленная семантика).
-- Расхождение → баг одной из сторон; разбирать по операциям, не подбирать допуск.
+- The reference implementation: naive Rust per the §3.1 formulas (no
+  optimizations, an i32 accumulator, `round_ties_even`); it lives in the
+  test infrastructure.
+- The `golden-gen` generator (a bin in the fork): writes fixtures —
+  human-readable files (input, weights, bias, quant parameters, the
+  expected output).
+- Cases: T 1–64, channels 1–8, kernel 1–7, stride 1–2, valid/same — ~100
+  of them; a deterministic seed.
+- The comparison is **bit-for-bit** (no tolerance: the same integer
+  semantics).
+- A mismatch → a bug on one of the sides; investigate per operation, do
+  not pick a tolerance.
 
-### 5.3 Страховка недели 3 (сверка с TFLite)
+### 5.3 The week-3 safety net (a cross-check against TFLite)
 
-Host-инференс реального `conv1d.tflite` через `#[model]` против вывода
-TFLite interpreter (Python): допуск ±1 квант на выходе (разный порядок
-операций допустим между реализациями requant — зафиксировать факт).
+Host inference of the real `conv1d.tflite` via `#[model]` against the
+TFLite interpreter output (Python): a tolerance of ±1 quantum at the output
+(a different order of operations is allowed between requant
+implementations — record the fact).
 
 ## 6. Definition of Done
 
-### Неделя 2 (кернел)
+### Week 2 (kernel)
 
-- [ ] conv_1d проходит toy-тест (§5.1) и все golden-кейсы (§5.2).
-- [ ] Краевые случаи: `T < k` (same), `stride=2`, `valid/same`, 8 каналов.
-- [ ] `cargo test` + `cargo clippy --all-targets -- -D warnings` зелёные.
-- [ ] Кернел `no_std`-совместим (без аллокаций, без std-крейтов).
+- [ ] conv_1d passes the toy test (§5.1) and all golden cases (§5.2).
+- [ ] Edge cases: `T < k` (same), `stride=2`, `valid/same`, 8 channels.
+- [ ] `cargo test` + `cargo clippy --all-targets -- -D warnings` green.
+- [ ] The kernel is `no_std`-compatible (no allocations, no std crates).
 
-### Неделя 3 (парсер + кодеген)
+### Week 3 (parser + codegen)
 
-- [ ] `#[model]` принимает модель с rank-3 входом (§2.2).
-- [ ] Shape-folding §2.1 сворачивает весь граф спайка (18 op → 6 слоёв).
-- [ ] FC без bias и с per-channel весами проходит §5.3 (допуск ±1).
-- [ ] Host-инференс `conv1d.tflite` через `#[model]` совпадает с TFLite
-  interpreter в пределах ±1 кванта на всех тестовых окнах.
-- [ ] `cargo test` + clippy зелёные; пример `conv1d_spike` в форке.
+- [ ] `#[model]` accepts a model with a rank-3 input (§2.2).
+- [ ] The §2.1 shape-folding folds the whole spike graph (18 ops → 6
+  layers).
+- [ ] FC without a bias and with per-channel weights passes §5.3 (±1
+  tolerance).
+- [ ] Host inference of `conv1d.tflite` via `#[model]` matches the TFLite
+  interpreter within ±1 quantum on all test windows.
+- [ ] `cargo test` + clippy green; the `conv1d_spike` example in the fork.

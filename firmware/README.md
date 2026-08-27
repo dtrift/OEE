@@ -1,44 +1,46 @@
-# firmware/ — скелет прошивок узлов (колея железа)
+# firmware/ — node firmware skeletons (the hardware track)
 
-Прошивки ESP32-S3-DevKitC-1 (N16R8) для узлов A/P/Q. Отдельный workspace —
-как `fork/microflow`: целевой тулчейн (Xtensa, `espup`) не должен влиять на
-хост-CI корневого workspace.
+Russian version: [README.ru.md](README.ru.md)
 
-## Статус: скелет без esp-тулчейна
+ESP32-S3-DevKitC-1 (N16R8) firmwares for nodes A/P/Q. A separate workspace,
+like `fork/microflow`: the target toolchain (Xtensa, `espup`) must not
+affect the host CI of the root workspace.
 
-Все крейты собираются на хосте обычным `cargo` (зависимостей нет). Это
-сознательно: структура и контракты фиксируются сейчас, тулчейн подключается
-на обкатке. Что уже контракт:
+## Status: skeleton without the esp toolchain
 
-- `board` — пины стенда, единый источник истины (тест проверяет назначение
-  по списку зарезервированных пинов S3);
-- `features-cli` (корневой workspace) — контракты окна/частоты
-  (`window_spec`), калибровки ADC→амперы и CSV-схемы захватов; крейт
-  `#![no_std]`, прошивки зависят от него path-зависимостью;
-- `nodes::source::SensorSource` — источник данных узла
+All crates build on the host with plain `cargo` (no dependencies). This is
+deliberate: the structure and contracts are being pinned down now; the
+toolchain gets connected at shakedown time. What is already a contract:
+
+- `board` — bench pins, the single source of truth (a test checks the
+  assignments against the S3 reserved-pin list);
+- `features-cli` (root workspace) — window/rate contracts (`window_spec`),
+  ADC → amps calibration, and the capture CSV schema; the crate is
+  `#![no_std]`, firmwares depend on it via a path dependency;
+- `nodes::source::SensorSource` — the node data source
   (SimSource/AdcSource/I2sSource).
 
-## Оживление (первая сборка под плату)
+## Bringing it up (first on-board build)
 
-1. `cargo install espup && espup install` — патченный тулчейн Xtensa.
-2. `rustup component add rust-src` (для build-std).
-3. `. $HOME/export-esp.sh` (переменные окружения espup).
-4. В крейте узла раскомментировать зависимости и собрать:
+1. `cargo install espup && espup install` — the patched Xtensa toolchain.
+2. `rustup component add rust-src` (for build-std).
+3. `. $HOME/export-esp.sh` (espup environment variables).
+4. In the node crate, uncomment the dependencies and build:
    `cargo build -p firmware-a --target xtensa-esp32s3-none-elf`.
-5. Прошивка и лог: `espflash flash` / `espflash monitor`.
+5. Flash and monitor: `espflash flash` / `espflash monitor`.
 
-Когда появится реальная зависимость от `esp-hal`, добавить в CI третий
-job — build-only под Xtensa (тестов на хосте у прошивок нет: на железе
-проверяет человек).
+Once a real `esp-hal` dependency appears, add a third CI job — build-only
+under Xtensa (firmwares have no host tests: a human verifies on hardware).
 
-## Крейты
+## Crates
 
-| Крейт        | Роль                                                          |
-| ------------ | ------------------------------------------------------------- |
-| `board`      | Пины стенда по узлам + зарезервированные пины (N16R8)         |
-| `firmware-a` | Узел A: ACS712 → ADC1 → калибровка → окно → predict → статус  |
-| `firmware-q` | Узел Q: серво-таппер → I2S INMP441 → окно → predict → вердикт |
-| `firmware-p` | Узел P: TCRT5000 → фронт + анти-дребезг 50 мс → счёт          |
+| Crate        | Role                                                            |
+| ------------ | --------------------------------------------------------------- |
+| `board`      | Bench pins per node + reserved pins (N16R8)                     |
+| `firmware-a` | Node A: ACS712 → ADC1 → calibration → window → predict → status |
+| `firmware-q` | Node Q: servo tapper → I2S INMP441 → window → predict → verdict |
+| `firmware-p` | Node P: TCRT5000 → edge + 50 ms debounce → counting             |
 
-Питание серво узла Q — отдельный БП 5 В (не USB платы): стартовый ток
-серво роняет питание и перезагружает плату; конденсатор 470 мкФ у ножек.
+Node Q servo power is a separate 5 V supply (not the board's USB): the
+servo inrush current sags the rail and reboots the board; keep a 470 µF
+capacitor at the servo pins.
