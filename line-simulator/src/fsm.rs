@@ -25,6 +25,18 @@ impl MachineState {
             Self::Overload => "overload",
         }
     }
+
+    /// Training class index — the pinned mapping for the model A dataset
+    /// (`ml/scripts/train_model_a.py` reads labels through this order).
+    /// Must stay stable: it is part of the model contract.
+    pub const fn class_index(self) -> usize {
+        match self {
+            Self::Idle => 0,
+            Self::Run => 1,
+            Self::Jam => 2,
+            Self::Overload => 3,
+        }
+    }
 }
 
 /// Scenario event: at time `t_ms` the machine switches to `state`.
@@ -65,6 +77,14 @@ mod tests {
     fn state_names_are_stable() {
         assert_eq!(MachineState::Idle.as_str(), "idle");
         assert_eq!(MachineState::Overload.as_str(), "overload");
+    }
+
+    #[test]
+    fn class_indices_are_pinned() {
+        assert_eq!(MachineState::Idle.class_index(), 0);
+        assert_eq!(MachineState::Run.class_index(), 1);
+        assert_eq!(MachineState::Jam.class_index(), 2);
+        assert_eq!(MachineState::Overload.class_index(), 3);
     }
 
     #[test]
