@@ -7,3 +7,11 @@ license.workspace = true
 publish = false
 
 [dependencies]
+# Week 3 (D6) bridge: inference through the local microflow fork. The
+# [patch.crates-io] nalgebra quirk is duplicated in the workspace root
+# Cargo.toml (a patch from a path dependency's manifest is not applied).
+microflow = { path = "../fork/microflow" }
+features-cli = { path = "../features-cli" }
+# The same nalgebra the fork uses (redirected to the fork's git patch by the
+# workspace-level [patch.crates-io]).
+nalgebra = { version = "0.32", default-features = false, features = ["macros"] }

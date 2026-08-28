@@ -7,7 +7,9 @@ members = [
     "features-cli",
 ]
 # fork/microflow is a separate workspace (its own [workspace] and [patch]);
-# it is wired in as a path dependency and is not a member here.
+# it is wired in as a path dependency and is not a member here — `exclude`
+# keeps cargo from seeing two workspace roots in one tree.
+exclude = ["fork"]
 
 [workspace.package]
 edition = "2021"
@@ -24,12 +26,10 @@ clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 
 # The nalgebra patch from the microflow fork: [patch] sections of a path
-# dependency's manifest are ignored — duplicate it here once workspace crates
-# start depending on fork/microflow (week 3, nodes). Until that dependency
-# exists the patch would only produce a "was not used" warning, so it stays
-# commented out.
-# [patch.crates-io]
-# nalgebra = { git = "https://github.com/matteocarnelos/nalgebra" }
+# dependency's manifest are ignored — it is duplicated here once workspace
+# crates start depending on fork/microflow (week 3, nodes; see fork/NOTES.md).
+[patch.crates-io]
+nalgebra = { git = "https://github.com/matteocarnelos/nalgebra" }
 
 [profile.release]
 lto = true
