@@ -7,3 +7,6 @@ license.workspace = true
 publish = false
 
 [dependencies]
+# no_std transcendental functions for the feature extractor (sqrt/cos);
+# pinned to the workspace lock version (0.2.16) — no resolution change.
+libm = "0.2"
