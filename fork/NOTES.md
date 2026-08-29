@@ -131,3 +131,46 @@ the implementation contract — in [`docs/conv1d-spec.md`](./docs/conv1d-spec.md
   dispatch table must match the generator.
 - The dev dependency `rand = "0.9"` was added (the fixture generator); the
   runtime stayed no_std with no new dependencies.
+
+## Week 3 — the parser/codegen and the FC extension (facts for week 4)
+
+- **Shape folding (§2.1)** lives in `microflow-macros/src/shape_fold.rs`: a
+  tensor → virtual shape table; `EXPAND_DIMS`/`RESHAPE`/`SHAPE`/
+  `STRIDED_SLICE`/`PACK` produce no code. The spike graph folds 18 ops →
+  6 layers (a unit test pins this on the real `models/conv1d.tflite`).
+- **Rank-3 input (§2.2)**: the user-facing type is `Buffer2D<f32, T, C>`;
+  internally the generated `predict` re-labels it into
+  `Tensor4D<_, 1, 1, T, C, 1>` via `SMatrix::from_fn` (a stack copy, no
+  heap — not literally zero-copy, but allocation-free).
+- **Conversions**: when two layers' effective shapes differ (a folded
+  RESHAPE), the driver emits `microflow::ops::reshape` bindings; 4D→4D hops
+  through the flattened 2D form. 2D targets must be batch-major `(1, n)`.
+- **The 1-D discriminator**: `CONV_2D` goes to `conv_1d` only when BOTH the
+  filters height is 1 AND the effective input height is 1 (person_detect has
+  1×1 filters over 96-row images — a real 2-D convolution).
+- **FC per-channel (§3.3)**: the runtime takes a generic `WEIGHTS_QUANTS` and
+  a 3-tuple of per-output constants (bias term, multiplier,
+  zp correction); the old 4-tuple's scalar `INPUT_COLS*zp_x*zp_w` term merged
+  into the per-column correction. A converter-dropped bias (F6) is
+  synthesized as zeros by the macro.
+- **conv_1d codegen**: scales/zps and the int32 bias are passed through
+  raw; the bias is converted to accumulator units with
+  `round(b_raw * scale_b / (scale_x * scale_w[f]))` — an identity when
+  TFLite's `scale_b = scale_x*scale_w[f]` holds, a correction otherwise.
+- **Quantization facts confirmed in the file**: conv filters carry 8 scales
+  (per-channel, F5), FC weights 4 scales (per-channel, F6), activations
+  per-tensor. The old reshape.rs parser is gone (folded);
+  `ops/mod.rs` registers `conv_1d`.
+- **Path conventions**: `#[model("...")]` resolves relative to the rustc
+  cwd — the workspace root for workspace builds, the package dir for the
+  fork's own targets. Test binaries run with the package dir as cwd.
+- **Toolchain trap (fixed)**: `f32::round_ties_even`/`round`/`floor`/`trunc`
+  are std-only in this no_std core build — the week-2 kernel silently relied
+  on cached artifacts. `conv_1d.rs` now uses a `libm::truncf`-based
+  `round_ties_even` helper (bit-identical, pinned by the golden fixtures).
+  Rule: `cargo clean -p <crate>` before trusting a green cache after
+  toolchain changes.
+- **The bridge**: `nodes` depends on this fork by path; the OEE root
+  `Cargo.toml` duplicates `[patch.crates-io] nalgebra` (a dependency's
+  `[patch]` is ignored) and `exclude = ["fork"]` keeps the two workspace
+  roots apart.

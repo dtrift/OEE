@@ -2,6 +2,8 @@
 
 //! Feature parity (plan section 6): a single Rust crate computes features
 //! for both training and inference — numpy receives ready-made features.
+//! The fixed feature list (RMS, peak, zero-crossings, spectrum) lives in
+//! [`features`] and is locked against numpy by a golden test (week 3, D4).
 //!
 //! Contracts of the "code-only <-> hardware" track:
 //! - [`window_spec`]: window and sample rate are per-node, not one global
@@ -14,6 +16,7 @@
 
 pub mod calibration;
 pub mod capture;
+pub mod features;
 
 /// A digital-twin node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
