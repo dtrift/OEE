@@ -1,0 +1,25 @@
+[package]
+name = "trainer"
+description = "Rust-ML track: burn training of model A + the one-command pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+exporter = { path = "../exporter" }
+# Pinned on D0 (rust-ml track): the fresh stable burn line; training needs
+# the network — see the root Cargo.toml for the feature set.
+burn = { workspace = true }
+csv = { workspace = true }
+rand = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+
+[[bin]]
+name = "smoke"
+path = "src/bin/smoke.rs"
+
+[[bin]]
+name = "train"
+path = "src/bin/train.rs"

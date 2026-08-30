@@ -2,16 +2,17 @@
 //!
 //! Week 3 (D6 bridge): inference runs through the local microflow fork via
 //! the path dependency — the `#[model]` macro compiles inside the workspace.
-//! Until the trained `model_a.tflite` lands (D5, needs the TF venv), the
-//! spike model with the identical architecture serves as the stand-in; the
-//! switch is a one-line path change pinned by the test below.
+//! Rust-ML track (D5): the model is the rust-born `model_a.tflite` (burn
+//! training → PTQ → flatbuffers writer, one command in `ml/`). The switch
+//! from the TF-converted spike model is a one-line path change (the old
+//! artifact stays as `conv1d.tflite`).
 
 use microflow::model;
 use nalgebra::SMatrix;
 
 // The path is resolved at compile time relative to the workspace root
 // (rustc's cwd for workspace builds) — see fork/NOTES.md, week 3.
-#[model("ml/models/conv1d.tflite")]
+#[model("ml/models/model_a.tflite")]
 struct CurrentModel;
 
 /// Window length of the node A model (WindowSpec(A) = 128 @ 1.6 kHz,

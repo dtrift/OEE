@@ -174,3 +174,83 @@ the implementation contract — in [`docs/conv1d-spec.md`](./docs/conv1d-spec.md
   `Cargo.toml` duplicates `[patch.crates-io] nalgebra` (a dependency's
   `[patch]` is ignored) and `exclude = ["fork"]` keeps the two workspace
   roots apart.
+
+## Rust-ML track — the writer's own conventions and facts
+
+The track (`tmp/docs/decompose/rust-ml.rus.md`) writes `.tflite` files from
+Rust (burn training → own PTQ → own flatbuffers writer). The fork is NOT
+modified: everything below lives in `ml/exporter` + `ml/trainer`.
+
+- The generated flatbuffers bindings are NOT copied into the exporter: the
+  crate includes the fork's `microflow-macros/flatbuffers/
+  tflite_generated.rs` by `#[path]` (the same file the `#[model]` macro
+  compiles against) — one source of truth, zero duplication; a fork schema
+  update reaches the writer automatically.
+
+Writer conventions (what `#[model]` accepts from a rust-born file):
+
+- **Minimal graph**: exactly the 6 real operators, no EXPAND_DIMS/RESHAPE/
+  Flatten wrappers. The rank-3 input `(1, 128, 1)` normalizes in the parser
+  (§2.2), the rank-4 FC input `(1,1,30,16)` unfolds to `(1, 480)` (§2.1) —
+  the folded path and the minimal path are the same code, a live test of
+  the parser's generality (`ml/exporter/tests/model_microflow.rs`).
+- `zero_point` is an **i64** vector in the schema (i64 in the writer,
+  `i64::to_subset_unchecked` in the reader); scales are f32, per-channel
+  for conv/FC weights (F entries, zp = 0 — F5/F6), per-tensor for
+  activations (F7).
+- Buffer 0 is empty (the TF convention); activation tensors point at it.
+- `operator_codes` = `[CONV_2D, AVERAGE_POOL_2D, FULLY_CONNECTED, SOFTMAX]`,
+  `deprecated_builtin_code` mirrors `builtin_code` (all fit in i8),
+  `ModelArgs { version: 3 }`.
+- Bias int32 per-channel with `scale_b = scale_x * scale_w[f]` — the
+  macro's accumulator-unit conversion is then an identity.
+- The softmax **output** (the model output tensor) gets `scale = 1/256,
+  zp = -128` — the TF convention the kernel quantizes probabilities with.
+  (The track plan's wording "softmax input" maps to this tensor; in the
+  TF-converted file the 1/256 scale sits on `#32`, the softmax output.)
+- Pools keep the input's quantization (the requant ratio is 1) — like the
+  TF file, where pools share the convolution's scale.
+- Asymmetric activation params use the FULL int8 range:
+  `scale = (max-min)/255`, `zp = -128 - round(min/scale)` → `q(min) = -128`.
+  (A naive `zp = round(-min/scale)` is the u8 formula — with it, zp clamps
+  at 127, the top of the range saturates and logits collapse to equal
+  quanta: softmax [0.5, 0.5, 0, 0]. Pinned by a quant unit test.)
+
+Kernel facts confirmed from the rust-born side:
+
+- **The softmax kernel does NOT subtract the max**: it computes
+  `expf(logit * scale)` directly. With a unit-scale dummy (logits up to
+  ±127, scale 1) `expf` overflows f32 → NaN → `as i8` = 0, and the output
+  degenerates. Realistic PTQ scales keep `logit * scale` ≈ O(1) — safe.
+  Dummies must go through PTQ (see `gen_dummy`), not unit scales.
+- Pool/FC kernels round half-away-from-zero (`roundf`); conv_1d rounds
+  ties-even — the interp reference (ties-even, float accumulator,
+  per-layer requant) diverges from the kernels by ≤ 2 quanta per layer
+  output, observed 0–1 on the fixtures (the D3.3 agreement, pinned by
+  `ml/exporter/tests/model_a_parity.rs`).
+- `predict_quantized`'s softmax ignores the input zp — shift-invariance of
+  softmax; any zp on the FC output is fine.
+
+Export seams (burn 0.21 → TFLite, pinned by trainer tests):
+
+- burn `Conv1d` weights are `[F, C, k]` (cross-correlation, channel-first
+  `[B, C, L]` input) → the file's OHWI `[F, 1, k, C]` is a swap of the last
+  two axes.
+- **burn 0.21 `Linear` stores weights as `[d_input, d_output]`** (`O = IW`),
+  NOT the PyTorch `[Out, In]` — the export must transpose. Missing this
+  silently transposes the FC and degrades int8 accuracy to ~0.25.
+- The burn forward transposes `[B, C, L] → [B, L, C]` before flatten, so
+  the FC input order is the TFLite row-major `(T, F)` — then the FC weights
+  need no permutation at export.
+- Split port (D4.3): per-class shuffle with `StdRng` seed 2026 and the py
+  script's exact `int(len * (1.0 - 0.15))` cut — the class profiles match
+  the Python track bit-exactly; the window membership differs (numpy's
+  PCG64 shuffle is not reproduced — documented deviation, both tracks stay
+  individually deterministic).
+- Determinism: the full train→PTQ→write pipeline re-runs bit-identically
+  (sha256 pinned in `ml/models/model_a.metrics.txt`); no thread pinning was
+  needed for the NdArray backend.
+- `#[model]` bakes the `.tflite` at COMPILE time — regenerating the model
+  does not retrigger cargo. After a pipeline run: `touch` the test sources
+  (`ml/exporter/tests/ml_metrics.rs`, `model_a_parity.rs`, `nodes/src/a.rs`)
+  before re-running the microflow-side tests (see `ml/README.md`).
