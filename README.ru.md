@@ -41,18 +41,18 @@ graph LR
 
 ## Структура
 
-| Путь              | Назначение                                                        |
-| ----------------- | ----------------------------------------------------------------- |
-| `line-simulator/` | FSM станка + синтез сигнала тока + CSV (датасет и ground truth)   |
-| `nodes/`          | Узлы A (ток) / P (счёт) / Q (акустика) — в разработке, недели 4–5 |
-| `oee-aggregator/` | A × P × Q → OEE — в разработке, неделя 5                          |
-| `oee-dashboard/`  | TUI-дашборд ratatui: live OEE/A/P/Q — в разработке, неделя 5      |
-| `features-cli/`   | Общий Rust-код фич + контракты железа (окно, калибровка, capture) |
-| `fork/microflow`  | Форк движка microflow-rs (Conv1D) — свой workspace                |
-| `ml/`             | Python: Keras → int8 tflite + дампы                               |
-| `scenarios/`      | Декларативные TOML-сценарии прогонов (ground truth)               |
-| `spike/`          | Спайк-доки недели 1 (сериализация Conv1D)                         |
-| `firmware/`       | Скелет прошивок ESP32-S3 — колея железа (свой workspace)          |
+| Путь              | Назначение                                                              |
+| ----------------- | ----------------------------------------------------------------------- |
+| `line-simulator/` | FSM станка + синтез сигнала тока + CSV (датасет и ground truth)         |
+| `nodes/`          | Узлы A (ток) / P (счёт) / Q (акустика) — в разработке, недели 4–5       |
+| `oee-aggregator/` | A × P × Q → OEE — в разработке, неделя 5                                |
+| `oee-dashboard/`  | TUI-дашборд ratatui: live OEE/A/P/Q — в разработке, неделя 5            |
+| `features-cli/`   | Общий Rust-код фич + контракты железа (окно, калибровка, capture)       |
+| `fork/microflow`  | Форк движка microflow-rs (Conv1D) — свой workspace                      |
+| `ml/`             | ML-конвейер: Rust-трек (`exporter` + `trainer`) + legacy-скрипты Python |
+| `scenarios/`      | Декларативные TOML-сценарии прогонов (ground truth)                     |
+| `spike/`          | Спайк-доки недели 1 (сериализация Conv1D)                               |
+| `firmware/`       | Скелет прошивок ESP32-S3 — колея железа (свой workspace)                |
 
 ## Сборка и тесты
 
@@ -67,11 +67,10 @@ cargo build && cargo test && cargo clippy --all-targets -- -D warnings
 cd firmware && cargo test
 ```
 
-Патч nalgebra из git понадобится в корневом `Cargo.toml` с недели 3 (когда
-крейты workspace получат path-зависимость от форка) — секция уже приготовлена
-и закомментирована с пояснением. CI (GitHub Actions, `.github/workflows/ci.yml`)
-выполняет те же проверки: два задания — workspace и форк (fmt + clippy +
-тесты + примеры `sine`/`dense_spike`).
+Патч nalgebra из git применяется в корневом `Cargo.toml` (нужен с недели 3,
+когда крейты workspace получили path-зависимость от форка). CI (GitHub
+Actions, `.github/workflows/ci.yml`) выполняет те же проверки: два задания —
+workspace и форк (fmt + clippy + тесты + примеры `sine`/`dense_spike`).
 
 ## Симулятор
 
@@ -84,11 +83,28 @@ cargo run -p line-simulator -- --scenario scenarios/base.toml --seed 42 --out ru
 Сценарии: `base.toml` (норма), `downtime.toml` (простои), `degradation.toml`
 (деградация) — датасет-заготовка недель 3–4. Форма сигнала (гармоники, дрейф
 амплитуды) и шум — параметры сценария (секции `[signal]` и `[noise]`).
+Режим `--dataset` выдаёт размеченные окна (`label,state,x000..x127`) для
+обучения — вход ML-конвейера.
 
-## Python (ML-скрипты)
+## ML-конвейер
 
-TensorFlow нужен Python 3.12 (системный 3.14 не поддерживается TF).
-Окружение живёт в `tmp/` (gitignored):
+Основной путь — Rust-трек (см. [`ml/README.md`](ml/README.md)): одной
+командой burn-обучение → собственный PTQ → собственный flatbuffers-райтер →
+int8 `.tflite`; повторный запуск побитово совпадает. Узел A работает на
+rust-born модели (`ml/models/model_a.tflite`).
+
+```bash
+cargo run -p trainer --release --bin train -- \
+    --datasets tmp/ds_*.csv --calib 256 --out ml/models/model_a.tflite
+```
+
+Первая сборка `trainer` скачивает `burn` с crates.io (запинован 0.21.0);
+`exporter` собирается полностью офлайн.
+
+Python-скрипты (`ml/scripts/`) — legacy-путь: они дали факты сериализации
+F1–F7 (`fork/docs/conv1d-spec.md`) и остаются справкой по поведению
+TF-конвертера. TensorFlow нужен Python 3.12 (системный 3.14 не поддерживается
+TF); окружение живёт в `tmp/` (gitignored):
 
 ```bash
 tmp/venv312/bin/python ml/scripts/build_conv1d_model.py   # спайк-модель + дамп
@@ -128,18 +144,13 @@ Conv1D — контракт недель 2–3).
 
 ## Статус
 
-Готово (неделя 1 + колея железа):
+Готово: недели 1–3 (кернел Conv1D, парсер макроса + кодеген, ML-конвейер)
+и стретч-трек rust-ml (весь цикл train → PTQ → export в Rust) — чеклисты и
+артефакты в гейт-доках: [`week1-gate.md`](./docs/rus/week1-gate.md),
+[`week2-gate.md`](./docs/rus/week2-gate.md),
+[`week3-gate.md`](./docs/rus/week3-gate.md),
+[`rust-ml-gate.md`](./docs/rus/rust-ml-gate.md).
 
-- Форк microflow собирается, тесты зелёные, `sine` предсказывает — риск №1
-  снят.
-- Факт сериализации Conv1D зафиксирован (`spike/conv1d-serialization.md`),
-  спека — `fork/docs/conv1d-spec.md`.
-- Каркас workspace и симулятор: FSM + синтез сигнала + детерминизм (один
-  seed — побитово одинаковый CSV).
-- Контракты колеи железа: `window_spec` / калибровка / capture в
-  `features-cli`, `SensorSource` в `nodes`, скелет `firmware/`.
-
-Дальше (недели 2–3): кернел `Conv1D` и парсер макроса по спеке,
-golden-тесты; затем узлы и MQTT (недели 4–5), QEMU LM3S6965 с бенчмарками
-criterion (неделя 6) — полный план в [`docs/rus/plan.md`](./docs/rus/plan.md) (английский
-перевод — [`docs/eng/plan.md`](./docs/eng/plan.md)).
+Дальше: узлы и MQTT (недели 4–5), QEMU LM3S6965 с бенчмарками criterion
+(неделя 6) — полный план в [`docs/rus/plan.md`](./docs/rus/plan.md)
+(английский перевод — [`docs/eng/plan.md`](./docs/eng/plan.md)).
