@@ -1,0 +1,29 @@
+# dump: 6 operators, 13 tensors, 7 buffers, version 3
+op[0] CONV_2D
+  in  #0 serving_default_input shape=[1, 128, 1] dtype=INT8, scale=0.0086588245, zp=0
+  in  #2 conv0_weights shape=[8, 1, 3, 1] dtype=INT8, scale=[8 values, 0.0028865375..0.0034027174], zp=[8 values]
+  in  #3 conv0_bias shape=[8] dtype=INT32, scale=[8 values, 0.000024994022..0.000029463532], zp=[8 values]
+  out #1 conv0_out shape=[1, 1, 126, 8] dtype=INT8, scale=0.0037143053, zp=-128
+op[1] AVERAGE_POOL_2D
+  in  #1 conv0_out shape=[1, 1, 126, 8] dtype=INT8, scale=0.0037143053, zp=-128
+  out #4 pool1_out shape=[1, 1, 63, 8] dtype=INT8, scale=0.0037143053, zp=-128
+op[2] CONV_2D
+  in  #4 pool1_out shape=[1, 1, 63, 8] dtype=INT8, scale=0.0037143053, zp=-128
+  in  #6 conv2_weights shape=[16, 1, 3, 8] dtype=INT8, scale=[16 values, 0.003837851..0.0037989137], zp=[16 values]
+  in  #7 conv2_bias shape=[16] dtype=INT32, scale=[16 values, 0.000014254951..0.0000141103255], zp=[16 values]
+  out #5 conv2_out shape=[1, 1, 61, 16] dtype=INT8, scale=0.0049132896, zp=-128
+op[3] AVERAGE_POOL_2D
+  in  #5 conv2_out shape=[1, 1, 61, 16] dtype=INT8, scale=0.0049132896, zp=-128
+  out #8 pool3_out shape=[1, 1, 30, 16] dtype=INT8, scale=0.0049132896, zp=-128
+op[4] FULLY_CONNECTED
+  in  #8 pool3_out shape=[1, 1, 30, 16] dtype=INT8, scale=0.0049132896, zp=-128
+  in  #10 fc4_weights shape=[4, 480] dtype=INT8, scale=[4 values, 0.0007828493..0.00078356225], zp=[4 values]
+  in  #11 fc4_bias shape=[4] dtype=INT32, scale=[4 values, 0.0000038463654..0.0000038498683], zp=[4 values]
+  out #9 fc4_out shape=[1, 4] dtype=INT8, scale=0.0034074911, zp=-10
+op[5] SOFTMAX
+  in  #9 fc4_out shape=[1, 4] dtype=INT8, scale=0.0034074911, zp=-10
+  out #12 softmax5_out shape=[1, 4] dtype=INT8, scale=0.00390625, zp=-128
+
+# Global subgraph input/output
+  input  #0 serving_default_input shape=[1, 128, 1] dtype=INT8, scale=0.0086588245, zp=0
+  output #12 softmax5_out shape=[1, 4] dtype=INT8, scale=0.00390625, zp=-128

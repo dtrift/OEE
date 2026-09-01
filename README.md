@@ -50,7 +50,7 @@ graph LR
 | `oee-dashboard/`  | ratatui TUI dashboard: live OEE/A/P/Q — in progress, week 5                  |
 | `features-cli/`   | Shared Rust feature code + hardware contracts (window, calibration, capture) |
 | `fork/microflow`  | microflow-rs engine fork (Conv1D) — its own workspace                        |
-| `ml/`             | Python: Keras → int8 tflite + dumps                                          |
+| `ml/`             | ML pipeline: the Rust track (`exporter` + `trainer`) + legacy Python scripts |
 | `scenarios/`      | Declarative TOML run scenarios (ground truth)                                |
 | `spike/`          | Week-1 spike docs (Conv1D serialization)                                     |
 | `firmware/`       | ESP32-S3 firmware skeletons — hardware track (its own workspace)             |
@@ -71,11 +71,10 @@ toolchain:
 cd firmware && cargo test
 ```
 
-The nalgebra git patch will be needed in the root `Cargo.toml` from week 3
-(when workspace crates gain a path dependency on the fork) — the section is
-already prepared and commented out with an explanation. CI (GitHub Actions,
-`.github/workflows/ci.yml`) runs the same checks: two jobs — workspace and
-fork (fmt + clippy + tests + the `sine`/`dense_spike` examples).
+The nalgebra git patch is applied in the root `Cargo.toml` (required since
+week 3, when workspace crates gained a path dependency on the fork). CI
+(GitHub Actions, `.github/workflows/ci.yml`) runs the same checks: two jobs —
+workspace and fork (fmt + clippy + tests + the `sine`/`dense_spike` examples).
 
 ## Simulator
 
@@ -88,12 +87,29 @@ Determinism: one seed → a bit-identical CSV (the `deterministic_csv` test).
 Scenarios: `base.toml` (normal), `downtime.toml` (downtime),
 `degradation.toml` (degradation) — dataset seed material for weeks 3–4.
 Signal shape (harmonics, amplitude drift) and noise are scenario parameters
-(the `[signal]` and `[noise]` sections).
+(the `[signal]` and `[noise]` sections). The `--dataset` mode emits labeled
+windows (`label,state,x000..x127`) for ML training — the pipeline input.
 
-## Python (ML scripts)
+## ML pipeline
 
-TensorFlow needs Python 3.12 (the system 3.14 is not supported by TF).
-The environment lives in `tmp/` (gitignored):
+The main path is the Rust track (see [`ml/README.md`](ml/README.md)):
+one command does burn training → own PTQ → own flatbuffers writer →
+int8 `.tflite`; a re-run is bit-identical. Node A runs the rust-born model
+(`ml/models/model_a.tflite`).
+
+```bash
+cargo run -p trainer --release --bin train -- \
+    --datasets tmp/ds_*.csv --calib 256 --out ml/models/model_a.tflite
+```
+
+The first `trainer` build fetches `burn` from crates.io (pinned 0.21.0);
+`exporter` builds fully offline.
+
+The Python scripts (`ml/scripts/`) are the legacy path: they produced the
+serialization facts F1–F7 (`fork/docs/conv1d-spec.md`) and stay as the
+reference for the TF converter's behavior. TensorFlow needs Python 3.12
+(the system 3.14 is not supported by TF); the environment lives in `tmp/`
+(gitignored):
 
 ```bash
 tmp/venv312/bin/python ml/scripts/build_conv1d_model.py   # spike model + dump
@@ -134,20 +150,15 @@ shakedown runs in parallel through fixed contracts:
 
 ## Status
 
-Done (week 1 + the hardware track):
+Done: weeks 1–3 (the Conv1D kernel, the macro parser + codegen, the ML
+pipeline) and the rust-ml stretch track (the whole train → PTQ → export
+cycle in Rust) — the checklists and artifacts are in the gate docs:
+[`week1-gate.md`](./docs/eng/week1-gate.md),
+[`week2-gate.md`](./docs/eng/week2-gate.md),
+[`week3-gate.md`](./docs/eng/week3-gate.md),
+[`rust-ml-gate.md`](./docs/eng/rust-ml-gate.md).
 
-- The microflow fork builds, tests are green, `sine` predicts — risk #1 is
-  retired.
-- The Conv1D serialization fact is recorded
-  (`spike/conv1d-serialization.md`); the spec is
-  `fork/docs/conv1d-spec.md`.
-- The workspace skeleton and the simulator: FSM + signal synthesis +
-  determinism (one seed — a bit-identical CSV).
-- Hardware-track contracts: `window_spec` / calibration / capture in
-  `features-cli`, `SensorSource` in `nodes`, the `firmware/` skeleton.
-
-Next (weeks 2–3): the `Conv1D` kernel and the macro parser per the spec,
-golden tests; then nodes and MQTT (weeks 4–5), QEMU LM3S6965 with criterion
+Next: nodes and MQTT (weeks 4–5), QEMU LM3S6965 with criterion
 benchmarks (week 6) — the full plan is in
 [`docs/eng/plan.md`](./docs/eng/plan.md) (Russian original:
 [`docs/rus/plan.md`](./docs/rus/plan.md)).

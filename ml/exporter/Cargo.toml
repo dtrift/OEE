@@ -1,0 +1,26 @@
+[package]
+name = "exporter"
+description = "Rust-ML track: PTQ quantization, TFLite flatbuffers writer, naive float reference"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+flatbuffers = "23.1"
+csv = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+# The week-3 bridge: `#[model]` tests compile the rust-born .tflite through
+# the local microflow fork (same path dependency as `nodes`).
+microflow = { path = "../../fork/microflow" }
+nalgebra = { version = "0.32", default-features = false, features = ["macros"] }
+
+[[bin]]
+name = "dump_model"
+path = "src/bin/dump_model.rs"
+
+[[bin]]
+name = "gen_dummy"
+path = "src/bin/gen_dummy.rs"

@@ -1,0 +1,11 @@
+seed: 2026
+float val accuracy: 1.0000
+int8 val accuracy (interp): 1.0000
+windows: val 2235
+sha256: 99e719d3870ddbdccf9070c67065a4e478e0eec9f5e67de263860ceb0ce772b9
+confusion matrix (rows=true, cols=pred):
+             idle       run       jam  overload
+  idle        497         0         0         0
+   run          0      1607         0         0
+   jam          0         0        77         0
+overload          0         0         0        54
