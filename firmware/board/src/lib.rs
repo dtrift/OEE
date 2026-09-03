@@ -1,6 +1,9 @@
 #![no_std]
 
-//! OEE bench pins on ESP32-S3-DevKitC-1 (N16R8).
+//! OEE bench pins. Boards: 2× ESP32-S3-DevKitC-1 (N16R8) — nodes A and Q;
+//! 1× ESP32-S3-WROOM-1 N16R8 CAM (OV2640 on board) — node P plus the
+//! stretch camera (its camera wiring takes some pins — cross-check the
+//! board's schematic before reusing them).
 //!
 //! Single source of truth for wiring. Bench schematic changes are made
 //! here, not in node firmwares.
@@ -25,10 +28,12 @@ pub mod node_q {
     pub const SERVO_PWM: u8 = 11;
 }
 
-/// Node P (IR barrier): TCRT5000 module OUT (comparator on the module,
-/// no resistors needed).
+/// Node P (IR barrier, on the CAM board): TCRT5000 module OUT (comparator
+/// on the module, no resistors needed).
 pub mod node_p {
-    /// IR-barrier output; edge counting, ~50 ms debounce.
+    /// IR-barrier output; edge counting, ~50 ms debounce. On the CAM board,
+    /// keep this pin free of the camera wiring (check the board schematic —
+    /// GPIO5 is the DevKitC-1 assignment).
     pub const IR_OUT: u8 = 5;
 }
 

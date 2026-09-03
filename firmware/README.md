@@ -1,10 +1,13 @@
 # firmware/ — node firmware skeletons (the hardware track)
 
-Russian version: [README.ru.md](README.ru.md)
+Russian version: [README.ru.md](README.ru.md). The shakedown plan (sessions
+S0–S7, the gate): [docs/eng/decompose/firmware.md](../docs/eng/decompose/firmware.md).
 
-ESP32-S3-DevKitC-1 (N16R8) firmwares for nodes A/P/Q. A separate workspace,
-like `fork/microflow`: the target toolchain (Xtensa, `espup`) must not
-affect the host CI of the root workspace.
+ESP32-S3 firmwares for nodes A/P/Q. The bench: 2× ESP32-S3-DevKitC-1 (N16R8)
+— nodes A and Q; 1× ESP32-S3-WROOM-1 N16R8 **CAM** with an on-board OV2640 —
+node P plus the stretch camera (its camera wiring takes some pins). A
+separate workspace, like `fork/microflow`: the target toolchain (Xtensa,
+`espup`) must not affect the host CI of the root workspace.
 
 ## Status: skeleton without the esp toolchain
 
@@ -34,12 +37,12 @@ under Xtensa (firmwares have no host tests: a human verifies on hardware).
 
 ## Crates
 
-| Crate        | Role                                                            |
-| ------------ | --------------------------------------------------------------- |
-| `board`      | Bench pins per node + reserved pins (N16R8)                     |
-| `firmware-a` | Node A: ACS712 → ADC1 → calibration → window → predict → status |
-| `firmware-q` | Node Q: servo tapper → I2S INMP441 → window → predict → verdict |
-| `firmware-p` | Node P: TCRT5000 → edge + 50 ms debounce → counting             |
+| Crate        | Role                                                                |
+| ------------ | ------------------------------------------------------------------- |
+| `board`      | Bench pins per node + reserved pins (N16R8; the CAM board — node P) |
+| `firmware-a` | Node A: ACS712 → ADC1 → calibration → window → predict → status     |
+| `firmware-q` | Node Q: servo tapper → I2S INMP441 → window → predict → verdict     |
+| `firmware-p` | Node P (the CAM board): TCRT5000 → edge + 50 ms debounce → counting |
 
 Node Q servo power is a separate 5 V supply (not the board's USB): the
 servo inrush current sags the rail and reboots the board; keep a 470 µF

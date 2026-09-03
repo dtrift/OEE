@@ -42,18 +42,19 @@ graph LR
 
 ## Structure
 
-| Path              | Purpose                                                                      |
-| ----------------- | ---------------------------------------------------------------------------- |
-| `line-simulator/` | Machine FSM + current-signal synthesis + CSV (dataset and ground truth)      |
-| `nodes/`          | Nodes A (current) / P (counting) / Q (acoustics) — in progress, weeks 4–5    |
-| `oee-aggregator/` | A × P × Q → OEE — in progress, week 5                                        |
-| `oee-dashboard/`  | ratatui TUI dashboard: live OEE/A/P/Q — in progress, week 5                  |
-| `features-cli/`   | Shared Rust feature code + hardware contracts (window, calibration, capture) |
-| `fork/microflow`  | microflow-rs engine fork (Conv1D) — its own workspace                        |
-| `ml/`             | ML pipeline: the Rust track (`exporter` + `trainer`) + legacy Python scripts |
-| `scenarios/`      | Declarative TOML run scenarios (ground truth)                                |
-| `spike/`          | Week-1 spike docs (Conv1D serialization)                                     |
-| `firmware/`       | ESP32-S3 firmware skeletons — hardware track (its own workspace)             |
+| Path              | Purpose                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| `line-simulator/` | Machine FSM + current-signal synthesis + CSV (dataset and ground truth)               |
+| `nodes/`          | Nodes A (current) / P (counting) / Q (acoustics): A/Q end-to-end (week 4), P — week 5 |
+| `oee-aggregator/` | A × P × Q → OEE — in progress, week 5                                                 |
+| `oee-dashboard/`  | ratatui TUI dashboard: live OEE/A/P/Q — in progress, week 5                           |
+| `features-cli/`   | Shared Rust feature code + hardware contracts (window, calibration, capture)          |
+| `mqtt-min/`       | A minimal own MQTT 3.1.1 client (std-only) — node status publishing (week 4)          |
+| `fork/microflow`  | microflow-rs engine fork (Conv1D) — its own workspace                                 |
+| `ml/`             | ML pipeline: the Rust track (`exporter` + `trainer`) + legacy Python scripts          |
+| `scenarios/`      | Declarative TOML run scenarios (ground truth)                                         |
+| `spike/`          | Week-1 spike docs (Conv1D serialization)                                              |
+| `firmware/`       | ESP32-S3 firmware skeletons — hardware track (its own workspace)                      |
 
 Documentation: `docs/eng/` (English), `docs/rus/` (Russian originals).
 
@@ -85,17 +86,23 @@ cargo run -p line-simulator -- --scenario scenarios/base.toml --seed 42 --out ru
 Output: CSV `t_ms,current_a,state` (state is the true mode, ground truth).
 Determinism: one seed → a bit-identical CSV (the `deterministic_csv` test).
 Scenarios: `base.toml` (normal), `downtime.toml` (downtime),
-`degradation.toml` (degradation) — dataset seed material for weeks 3–4.
-Signal shape (harmonics, amplitude drift) and noise are scenario parameters
-(the `[signal]` and `[noise]` sections). The `--dataset` mode emits labeled
-windows (`label,state,x000..x127`) for ML training — the pipeline input.
+`degradation.toml` (degradation), `jam_cycle.toml` (jam-heavy, week 3),
+`taps.toml` (the tap channel, week 4). Signal shape (harmonics, amplitude
+drift) and noise are scenario parameters (the `[signal]` and `[noise]`
+sections). The `--dataset` mode emits labeled current windows
+(`label,state,x000..x127`) — the model A training input; the
+`--taps-dataset` mode (+ `--taps-meta`) emits tap-test windows, 1024 @
+16 kHz (`label,state,x000..x1023` + the `t_ms,verdict` meta, the `[taps]`
+section) — the model Q dataset.
 
 ## ML pipeline
 
 The main path is the Rust track (see [`ml/README.md`](ml/README.md)):
 one command does burn training → own PTQ → own flatbuffers writer →
 int8 `.tflite`; a re-run is bit-identical. Node A runs the rust-born model
-(`ml/models/model_a.tflite`).
+(`ml/models/model_a.tflite`), node Q — `ml/models/model_q.tflite` (the same
+pipeline with `--task q`; the datasets come from the simulator's tap
+channel).
 
 ```bash
 cargo run -p trainer --release --bin train -- \
@@ -119,7 +126,7 @@ tmp/venv312/bin/python ml/scripts/build_dense_model.py    # dense bonus
 ## microflow fork
 
 `fork/microflow` is a clone of https://github.com/matteocarnelos/microflow-rs
-(commit `6d193da`). Build and tests:
+(commit `eda0ef6`, main after the week-3 merge). Build and tests:
 
 ```bash
 cd fork/microflow && cargo test
@@ -146,7 +153,13 @@ shakedown runs in parallel through fixed contracts:
   firmware sensor sources — one contract;
 - `firmware/` — a separate workspace (precedent: `fork/microflow`): `board`
   with the bench pins + A/Q/P firmware skeletons, builds on the host without
-  the esp toolchain.
+  the esp toolchain. The shakedown decomposition —
+  [`docs/eng/decompose/firmware.md`](./docs/eng/decompose/firmware.md).
+
+The bench is bought (2026-08-20): 2× ESP32-S3-DevKitC-1 (N16R8) — nodes A
+and Q; 1× ESP32-S3-WROOM-1 N16R8 CAM with OV2640 — node P + the stretch
+camera (the purchase list —
+[`docs/eng/equipment.md`](./docs/eng/equipment.md)).
 
 ## Status
 

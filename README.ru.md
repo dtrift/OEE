@@ -41,18 +41,19 @@ graph LR
 
 ## Структура
 
-| Путь              | Назначение                                                              |
-| ----------------- | ----------------------------------------------------------------------- |
-| `line-simulator/` | FSM станка + синтез сигнала тока + CSV (датасет и ground truth)         |
-| `nodes/`          | Узлы A (ток) / P (счёт) / Q (акустика) — в разработке, недели 4–5       |
-| `oee-aggregator/` | A × P × Q → OEE — в разработке, неделя 5                                |
-| `oee-dashboard/`  | TUI-дашборд ratatui: live OEE/A/P/Q — в разработке, неделя 5            |
-| `features-cli/`   | Общий Rust-код фич + контракты железа (окно, калибровка, capture)       |
-| `fork/microflow`  | Форк движка microflow-rs (Conv1D) — свой workspace                      |
-| `ml/`             | ML-конвейер: Rust-трек (`exporter` + `trainer`) + legacy-скрипты Python |
-| `scenarios/`      | Декларативные TOML-сценарии прогонов (ground truth)                     |
-| `spike/`          | Спайк-доки недели 1 (сериализация Conv1D)                               |
-| `firmware/`       | Скелет прошивок ESP32-S3 — колея железа (свой workspace)                |
+| Путь              | Назначение                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| `line-simulator/` | FSM станка + синтез сигнала тока + CSV (датасет и ground truth)                             |
+| `nodes/`          | Узлы A (ток) / P (счёт) / Q (акустика): A/Q end-to-end (неделя 4), P — неделя 5             |
+| `oee-aggregator/` | A × P × Q → OEE — в разработке, неделя 5                                                    |
+| `oee-dashboard/`  | TUI-дашборд ratatui: live OEE/A/P/Q — в разработке, неделя 5                                |
+| `features-cli/`   | Общий Rust-код фич + контракты железа (окно, калибровка, capture)                           |
+| `mqtt-min/`       | Минимальный собственный MQTT 3.1.1-клиент (std-only) — публикация статусов узлов (неделя 4) |
+| `fork/microflow`  | Форк движка microflow-rs (Conv1D) — свой workspace                                          |
+| `ml/`             | ML-конвейер: Rust-трек (`exporter` + `trainer`) + legacy-скрипты Python                     |
+| `scenarios/`      | Декларативные TOML-сценарии прогонов (ground truth)                                         |
+| `spike/`          | Спайк-доки недели 1 (сериализация Conv1D)                                                   |
+| `firmware/`       | Скелет прошивок ESP32-S3 — колея железа (свой workspace)                                    |
 
 ## Сборка и тесты
 
@@ -81,17 +82,22 @@ cargo run -p line-simulator -- --scenario scenarios/base.toml --seed 42 --out ru
 Выход: CSV `t_ms,current_a,state` (state — истинный режим, ground truth).
 Детерминизм: один seed → побитово одинаковый CSV (тест `deterministic_csv`).
 Сценарии: `base.toml` (норма), `downtime.toml` (простои), `degradation.toml`
-(деградация) — датасет-заготовка недель 3–4. Форма сигнала (гармоники, дрейф
-амплитуды) и шум — параметры сценария (секции `[signal]` и `[noise]`).
-Режим `--dataset` выдаёт размеченные окна (`label,state,x000..x127`) для
-обучения — вход ML-конвейера.
+(деградация), `jam_cycle.toml` (jam-тяжёлый, неделя 3), `taps.toml`
+(тап-канал, неделя 4). Форма сигнала (гармоники, дрейф амплитуды) и шум —
+параметры сценария (секции `[signal]` и `[noise]`). Режим `--dataset` выдаёт
+размеченные окна тока (`label,state,x000..x127`) — вход обучения модели A;
+режим `--taps-dataset` (+ `--taps-meta`) — окна тап-теста 1024 @ 16 кГц
+(`label,state,x000..x1023` + мета `t_ms,verdict`, секка `[taps]`) — датасет
+модели Q.
 
 ## ML-конвейер
 
 Основной путь — Rust-трек (см. [`ml/README.md`](ml/README.md)): одной
 командой burn-обучение → собственный PTQ → собственный flatbuffers-райтер →
 int8 `.tflite`; повторный запуск побитово совпадает. Узел A работает на
-rust-born модели (`ml/models/model_a.tflite`).
+rust-born модели (`ml/models/model_a.tflite`), узел Q — на
+`ml/models/model_q.tflite` (тот же пайплайн с флагом `--task q`; датасеты —
+тап-канал симулятора).
 
 ```bash
 cargo run -p trainer --release --bin train -- \
@@ -114,7 +120,7 @@ tmp/venv312/bin/python ml/scripts/build_dense_model.py    # dense-бонус
 ## Форк microflow
 
 `fork/microflow` — клон https://github.com/matteocarnelos/microflow-rs
-(коммит `6d193da`). Сборка и тесты:
+(коммит `eda0ef6`, main после вливания недели 3). Сборка и тесты:
 
 ```bash
 cd fork/microflow && cargo test
@@ -142,15 +148,24 @@ Conv1D — контракт недель 2–3).
   `board` с пинами стенда + заглушки прошивок A/Q/P, собирается на хосте
   без esp-тулчейна.
 
+Стенд закуплен (2026-08-20): 2× ESP32-S3-DevKitC-1 (N16R8) — узлы A и Q;
+1× ESP32-S3-WROOM-1 N16R8 CAM с OV2640 — узел P + stretch-камера (закупка —
+[`docs/rus/equipment.md`](./docs/rus/equipment.md)). Декомпозиция обкатки —
+[`docs/rus/decompose/firmware.md`](./docs/rus/decompose/firmware.md).
+
 ## Статус
 
-Готово: недели 1–3 (кернел Conv1D, парсер макроса + кодеген, ML-конвейер)
-и стретч-трек rust-ml (весь цикл train → PTQ → export в Rust) — чеклисты и
-артефакты в гейт-доках: [`week1-gate.md`](./docs/rus/week1-gate.md),
+Готово: недели 1–4 (кернел Conv1D, парсер макроса + кодеген, ML-конвейер,
+узлы A и Q end-to-end с публикацией MQTT — Q прошёл cut-line) и стретч-трек
+rust-ml (весь цикл train → PTQ → export в Rust, теперь параметризован
+задачами A и Q) — чеклисты и артефакты в гейт-доках:
+[`week1-gate.md`](./docs/rus/week1-gate.md),
 [`week2-gate.md`](./docs/rus/week2-gate.md),
 [`week3-gate.md`](./docs/rus/week3-gate.md),
-[`rust-ml-gate.md`](./docs/rus/rust-ml-gate.md).
+[`rust-ml-gate.md`](./docs/rus/rust-ml-gate.md),
+[`week4-gate.md`](./docs/rus/week4-gate.md).
 
-Дальше: узлы и MQTT (недели 4–5), QEMU LM3S6965 с бенчмарками criterion
-(неделя 6) — полный план в [`docs/rus/plan.md`](./docs/rus/plan.md)
-(английский перевод — [`docs/eng/plan.md`](./docs/eng/plan.md)).
+Дальше: узел P, OEE-агрегатор и дашборд (неделя 5), QEMU LM3S6965 с
+бенчмарками criterion (неделя 6) — полный план в
+[`docs/rus/plan.md`](./docs/rus/plan.md) (английский перевод —
+[`docs/eng/plan.md`](./docs/eng/plan.md)).
