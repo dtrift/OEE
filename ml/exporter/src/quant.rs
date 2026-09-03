@@ -459,6 +459,49 @@ mod tests {
         assert_eq!(asymmetric_params(3.0, 3.0), (1.0, 0));
     }
 
+    /// Near-zero calibration ranges (a near-silent window): tiny but valid
+    /// ranges must yield finite parameters inside the int8 bounds, and
+    /// out-of-range values under a tiny scale must saturate, not overflow.
+    /// Expectations from the formulas; the fp division noise decides which
+    /// side of a .5 tie the zero point lands on, so the tiny symmetric case
+    /// pins the full-range mapping invariant, not an exact zp.
+    #[test]
+    fn near_zero_ranges_quantize_in_bounds() {
+        // Tiny symmetric range [-0.001, 0.001]: scale ≈ 2e-3/255, min/scale
+        // ≈ -127.5 — a tie, so zp is 0 or -1 depending on the rounding noise.
+        let (scale, zp) = asymmetric_params(-0.001, 0.001);
+        assert!(scale > 0.0 && scale < 1e-5, "scale {scale}");
+        assert!((-128..=127).contains(&zp), "zp {zp}");
+        let q_min = (-0.001f32 / scale).round_ties_even() as i32 + zp as i32;
+        let q_max = (0.001f32 / scale).round_ties_even() as i32 + zp as i32;
+        assert_eq!(q_min, -128);
+        assert!((q_max - 127).abs() <= 1, "q_max {q_max}");
+        // A loud value against a near-silent calibration saturates — no
+        // inf/NaN through the tiny scale.
+        assert_eq!(quantize_symmetric(1000.0, scale), 127);
+        assert_eq!(quantize_symmetric(-1000.0, scale), -127);
+
+        // One-sided near-zero [0, 1e-9]: round(0/scale) = 0 → zp = -128
+        // exactly; the maximum maps onto 127 (255 - 128).
+        let (scale, zp) = asymmetric_params(0.0, 1e-9);
+        let expected_scale = 1e-9f32 / 255.0;
+        assert!(
+            (scale - expected_scale).abs() <= expected_scale * 1e-3,
+            "scale {scale}"
+        );
+        assert_eq!(zp, -128);
+        assert_eq!((1e-9f32 / scale).round_ties_even() as i32 + zp as i32, 127);
+
+        // Mirrored [-1e-9, 0]: round(min/scale) = -255 → zp sits on the
+        // upper clamp edge, 127.
+        let (scale, zp) = asymmetric_params(-1e-9, 0.0);
+        assert_eq!(zp, 127);
+        assert_eq!(
+            (-1e-9f32 / scale).round_ties_even() as i32 + zp as i32,
+            -128
+        );
+    }
+
     #[test]
     fn post_relu_parameters_use_the_lower_half() {
         let q = relu_params(1.02);
