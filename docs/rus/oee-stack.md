@@ -1,4 +1,4 @@
-# Стек и зависимости проекта OEE — 2026-08-22
+# Стек и зависимости проекта OEE — 2026-09-03
 
 - **Источник:** анализ манифестов (`Cargo.toml`), `Cargo.lock` (root, firmware, fork) и `ml/scripts/`.
 - **Границы:** форк `fork/microflow` — внешний submodule, приведён для полноты.
@@ -14,27 +14,38 @@
 
 ## Собственные крейты
 
-| Workspace        | Крейты                                                                 | Зависимости                             |
-| ---------------- | ---------------------------------------------------------------------- | --------------------------------------- |
-| корневой (root)  | `line-simulator`, `nodes`, `oee-aggregator`, `features-cli` (`no_std`) | все — у `line-simulator`; остальные — 0 |
-| `firmware/`      | `board`, `firmware-a`, `firmware-q`, `firmware-p`                      | нет                                     |
-| `fork/microflow` | `microflow` (runtime), `microflow-macros` (proc-macro)                 | см. разд. «Форк»                        |
+| Workspace        | Крейты                                                                                              | Зависимости                    |
+| ---------------- | --------------------------------------------------------------------------------------------------- | ------------------------------ |
+| корневой (root)  | `line-simulator`, `nodes`, `oee-aggregator`, `features-cli` (`no_std`), `ml/exporter`, `ml/trainer` | см. «Rust: прямые зависимости» |
+| `firmware/`      | `board`, `firmware-a`, `firmware-q`, `firmware-p`                                                   | нет                            |
+| `fork/microflow` | `microflow` (runtime), `microflow-macros` (proc-macro)                                              | см. разд. «Форк»               |
 
 ## Rust: прямые зависимости (корневой workspace)
 
-Все зависимости — у `line-simulator` (`nodes`, `oee-aggregator`, `features-cli` — без зависимостей).
+С недели 3 (мост Д6) и трека Rust-ML зависимости распределены по крейтам:
 
-| Крейт        | Версия (lock)    | Назначение                   |
-| ------------ | ---------------- | ---------------------------- |
-| `rand`       | 0.9.5            | seeded RNG (StdRng)          |
-| `rand_distr` | 0.5.1            | Normal (шум сигнала)         |
-| `serde`      | 1.0.229 (derive) | TOML-сценарии → структуры    |
-| `toml`       | 0.9.12           | парсинг сценариев            |
-| `csv`        | 1.4.0            | вывод `t_ms,current_a,state` |
-| `clap`       | 4.6.6 (derive)   | CLI                          |
-| `anyhow`     | 1.0.104          | обработка ошибок в `main`    |
+- `line-simulator` — `rand`, `rand_distr`, `serde`, `toml`, `csv`, `clap`, `anyhow`;
+- `features-cli` — `libm` (no_std-трансцендентные для фич, неделя 3, Д4);
+- `nodes` — `microflow` (path → форк), `features-cli` (path), `nalgebra` (неделя 3, Д6);
+- `ml/exporter` — `flatbuffers`, `csv`, `rand`; dev: `microflow` (path), `nalgebra`;
+- `ml/trainer` — `exporter` (path), `burn`, `csv`, `rand`, `clap`, `anyhow`;
+- `oee-aggregator` — без зависимостей.
 
-## Rust: транзитивные зависимости (весь lock — 51 пакет)
+| Крейт         | Версия (lock)    | Назначение                    |
+| ------------- | ---------------- | ----------------------------- |
+| `rand`        | 0.9.5            | seeded RNG (StdRng)           |
+| `rand_distr`  | 0.5.1            | Normal (шум сигнала)          |
+| `serde`       | 1.0.229 (derive) | TOML-сценарии → структуры     |
+| `toml`        | 0.9.12           | парсинг сценариев             |
+| `csv`         | 1.4.0            | вывод `t_ms,current_a,state`  |
+| `clap`        | 4.6.6 (derive)   | CLI                           |
+| `anyhow`      | 1.0.104          | обработка ошибок в `main`     |
+| `libm`        | 0.2.16           | no_std sqrt/cos для фич       |
+| `nalgebra`    | 0.32.2 (git)     | мост к форку (`nodes`)        |
+| `flatbuffers` | 23.5.26          | райтер `.tflite` (`exporter`) |
+| `burn`        | 0.21.0           | обучение A (`trainer`)        |
+
+## Rust: транзитивные зависимости (весь lock — 576 пакетов)
 
 - **rand-цепочка:** `rand_chacha` 0.9.0, `rand_core` 0.9.5, `ppv-lite86` 0.2.21, `zerocopy` 0.8.56 + `zerocopy-derive`, `getrandom` 0.3.4, `cfg-if` 1.0.4, `libc` 0.2.189, `r-efi` 5.3.0, `wasip2` 1.0.4, `wit-bindgen` 0.57.1
 - **rand_distr:** `num-traits` 0.2.19, `autocfg` 1.5.1, `libm` 0.2.16
@@ -42,6 +53,7 @@
 - **toml:** `indexmap` 2.14.0 (`equivalent`, `hashbrown` 0.17.1), `serde_spanned`, `toml_datetime`, `toml_parser`, `toml_writer`, `winnow` 0.7.15 / 1.0.4
 - **csv:** `csv-core` 0.1.13, `itoa` 1.0.18, `ryu` 1.0.23, `memchr` 2.8.3
 - **clap:** `clap_builder`, `clap_derive`, `clap_lex`, `heck`, `strsim`, `anstream` + `anstyle`-семейство (`anstyle-parse/query/wincon`, `colorchoice`, `is_terminal_polyfill`, `once_cell_polyfill`, `utf8parse`), `windows-sys`/`windows-link` (Windows-only)
+- **burn-цепочка (`ml/trainer`):** основной вклад в рост lock (51 → 576 пакетов) — ndarray/matrixmultiply, autodiff, derive-инфраструктура; отсюда сосуществующие версии в lock (`rand` 0.8/0.9/0.10, `syn` 1/2/3, `toml` 0.9/1.1 и др.), детально — `Cargo.lock`. Плюс `nalgebra` 0.32.2 + `simba` 0.8.1 (git-patch форка, мост недели 3).
 
 ## Python (ml/scripts)
 
@@ -52,11 +64,13 @@
 
 Замечание: requirements-файла для `tmp/venv312` нет — версии TF/numpy живут неявно. Для воспроизводимости ML-конвейера стоит запинить (родственно BL-15 из backlog).
 
+Скрипты недели 3: `train_model_a.py` (обучение + PTQ + метрики), `dump_parity_fixtures.py` (parity-фикстуры), `golden_features.py` (numpy-эталон фич). Модель для узла A рождается и без них — трек Rust-ML ([rust-ml-gate.md](rust-ml-gate.md)).
+
 ## Форк `fork/microflow` (submodule, отдельный workspace)
 
 - Прямые: `microflow-macros` 0.1 (path), `nalgebra` 0.32 (default-features off, **git-patch** `matteocarnelos/nalgebra`), `simba` 0.8, `libm` 0.2.
 - dev: `csv` 1.2, `criterion` 0.5.
-- Из-за git-patch'а `nalgebra` в корневом `Cargo.toml` приготовлен закомментированный `[patch.crates-io]` — понадобится с недели 3, когда крейты workspace получат path-зависимость от форка.
+- Из-за git-patch'а `nalgebra` в корневом `Cargo.toml` с недели 3 (мост Д6, `nodes`) включён `[patch.crates-io]`: секция `[patch]` из манифеста path-зависимости не применяется — патч продублирован в корне.
 
 ## Заявлено, но ещё не подключено
 

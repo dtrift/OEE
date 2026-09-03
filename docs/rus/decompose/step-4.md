@@ -9,8 +9,13 @@
 > Quality = 1.0 базлайн (разд. 9). Режим: 1 человек; будни ~2–3 ч, суббота ~4 ч.
 > Оценка: ~16–19 ч.
 >
-> Вход: гейт недели 3 — `#[model]`-инференс `model_a.tflite` на хосте, parity
-> зелёный, path-зависимость `nodes → fork/microflow` уже настроена (неделя 3, Д6).
+> Вход: гейт недели 3 — `#[model]`-инференс `.tflite` на хосте (спайковая
+> `conv1d.tflite`) и path-зависимость `nodes → fork/microflow` (неделя 3, Д6).
+> Обучение `model_a.tflite` и parity гейт оставил в статусе «инфра — ждёт TF-venv»
+> ([week3-gate.md](../week3-gate.md), «Отступления»); фактически закрыто стретч-треком
+> Rust-ML ([rust-ml-gate.md](../rust-ml-gate.md)): модель rust-born, parity без TF,
+> `nodes/src/a.rs` уже на ней. Прогон Python-трека в TF-venv — опциональная сверка,
+> не блокирует Д1.
 > Контракты в репо: `SensorSource` (`nodes/src/source.rs`, no_std), `WindowSpec`
 > (`features-cli`: A = 128 @ 1.6 кГц; Q = 1024 @ 16 кГц — предварительный,
 > «фиксируется лабораторией недели 4» — эта неделя и есть та лаборатория; P —
@@ -49,6 +54,10 @@
    `mosquitto_pub/sub` на `oee/line1/#`.
 3. `rumqttc` в `[workspace.dependencies]` корневого `Cargo.toml` (версию
    зафиксировать; дашборд недели 5 будет использовать ту же).
+4. (Опционально, не блокирует Д1) Сверка Python-трека недели 3 в TF-venv:
+   `tmp/venv312/bin/python ml/scripts/dump_parity_fixtures.py` →
+   `cargo test -p microflow --test conv1d_parity`; датасеты и `train_model_a.py` —
+   команды в [week3-gate.md](../week3-gate.md), «Отступления».
 
 ## Д1 (пн, ~3 ч) — узел A: пайплайн offline
 

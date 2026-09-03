@@ -9,8 +9,13 @@
 > not ready → it is dropped, Quality = 1.0 baseline (plan section 9). Mode: 1 person;
 > weekdays ~2–3 h, Saturday ~4 h. Estimate: ~16–19 h.
 >
-> Input: the week 3 gate — `#[model]` inference of `model_a.tflite` on the host, parity
-> green, the `nodes → fork/microflow` path dependency already wired up (week 3, D6).
+> Input: the week 3 gate — `#[model]` inference of `.tflite` on the host (the spike
+> `conv1d.tflite`) and the `nodes → fork/microflow` path dependency (week 3, D6).
+> Training `model_a.tflite` and parity were left by that gate as "infra — awaits a
+> TF-venv run" ([week3-gate.md](../week3-gate.md), Deviations); de facto closed by the
+> Rust-ML stretch track ([rust-ml-gate.md](../rust-ml-gate.md)): a rust-born model,
+> TF-free parity, `nodes/src/a.rs` already on it. The Python-track TF-venv run is an
+> optional cross-check, not a D1 blocker.
 > Contracts in the repo: `SensorSource` (`nodes/src/source.rs`, no_std), `WindowSpec`
 > (`features-cli`: A = 128 @ 1.6 kHz; Q = 1024 @ 16 kHz — preliminary, "to be fixed by
 > the week 4 lab" — this week is that lab; P — event-driven), the `capture` schema.
@@ -48,6 +53,10 @@
    on `oee/line1/#`.
 3. `rumqttc` into `[workspace.dependencies]` of the root `Cargo.toml` (pin the version;
    the week 5 dashboard will use the same one).
+4. (Optional, does not block D1) A week-3 Python-track cross-check in the TF venv:
+   `tmp/venv312/bin/python ml/scripts/dump_parity_fixtures.py` →
+   `cargo test -p microflow --test conv1d_parity`; datasets and `train_model_a.py` —
+   the commands are in [week3-gate.md](../week3-gate.md), Deviations.
 
 ## D1 (Mon, ~3 h) — node A: the offline pipeline
 

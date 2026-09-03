@@ -5,6 +5,10 @@
 > re-run: the fork — 33 lib + 4 integration tests, clippy clean; the workspace —
 > 10 suites, clippy clean; the golden generator is idempotent (a repeated run —
 > a bit-for-bit identical fixture file).
+>
+> Addendum (the week 3 gate): the "re-run" here was over cached build artifacts; a
+> latent kernel `no_std` bug (`round_ties_even`) surfaced on a clean week-3 rebuild
+> and was fixed there — [week3-gate.md](week3-gate.md), Deviations.
 
 ## Gate checklist
 
