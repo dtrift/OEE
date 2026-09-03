@@ -190,7 +190,9 @@ OEE (Overall Equipment Effectiveness, общая эффективность об
 ## 12. Future work (осознанно за рамками)
 
 - Реальное железо: trait `SensorSource` уже готов к `AdcSource`/`I2sSource` (см. README,
-  «Колея железа»).
+  «Колея железа»; стенд закуплен: 2× DevKitC-1 + плата ESP32-S3 WROOM N16R8 CAM
+  с OV2640 — декомпозиция `decompose/firmware.md`).
 - PR `Conv1D` в апстрим после курса (код и тесты уже в форке).
-- Камера OV2640 + `MaxPool2D` (вторая движковая вертикаль).
+- Камера OV2640 (модуль уже на стенде — плата ESP32-S3 WROOM N16R8 CAM, узел P) +
+  `MaxPool2D` (вторая движковая вертикаль).
 - QAT при просадке точности int8; Grafana с историей вместо TUI-дашборда.

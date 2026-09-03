@@ -197,7 +197,10 @@ they are entirely on the host.
 ## 12. Future work (deliberately out of scope)
 
 - Real hardware: the `SensorSource` trait is already prepared for `AdcSource`/`I2sSource`
-  (see README, "Hardware track").
+  (see README, "Hardware track"; the bench is bought: 2× DevKitC-1 + an
+  ESP32-S3 WROOM N16R8 CAM board with OV2640 — the `decompose/firmware.md`
+  breakdown).
 - A `Conv1D` PR upstream after the course (code and tests are already in the fork).
-- OV2640 camera + `MaxPool2D` (a second engine vertical).
+- The OV2640 camera (the module is already on the bench — the ESP32-S3 WROOM
+  N16R8 CAM board, node P) + `MaxPool2D` (a second engine vertical).
 - QAT if int8 accuracy drops; Grafana with history instead of the TUI dashboard.
