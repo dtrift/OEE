@@ -1,7 +1,8 @@
 /// Simulator CLI:
 /// `line-simulator --scenario base.toml --seed 42 --out run1.csv`
-/// (raw stream), or `line-simulator --scenario base.toml --seed 42
-/// --dataset windows.csv [--stride 64]` (labeled training windows, D4).
+/// (raw stream), `--dataset windows.csv [--stride 64]` (labeled training
+/// windows, D4), and/or `--taps-dataset taps.csv [--taps-meta taps_meta.csv]`
+/// (the node Q tap channel, week 4 D3).
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -10,7 +11,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use line_simulator::scenario::{Scenario, SAMPLE_RATE_HZ};
-use line_simulator::{dataset, Simulator};
+use line_simulator::{dataset, taps, Simulator};
 
 /// Deterministic production-line simulator.
 #[derive(Parser, Debug)]
@@ -32,6 +33,14 @@ struct Args {
     /// Window stride for --dataset, samples (default: half a window).
     #[arg(long, default_value_t = 64)]
     stride: usize,
+    /// Where to write the tap training windows (label,state,x000..x1023;
+    /// the node Q dataset, week 4 D3).
+    #[arg(long)]
+    taps_dataset: Option<PathBuf>,
+    /// Where to write the tap ground truth (t_ms,verdict); requires
+    /// --taps-dataset.
+    #[arg(long, requires = "taps_dataset")]
+    taps_meta: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -56,13 +65,23 @@ fn main() -> Result<()> {
         samples.push(simulator.next_sample(&scenario.envelope, &scenario.noise));
     }
 
-    match (args.out, args.dataset) {
-        (Some(out), _) => write_raw(out, &samples),
-        (None, Some(out)) => write_dataset(out, &samples, args.stride),
-        (None, None) => {
-            anyhow::bail!("nothing to do: pass --out or --dataset")
-        }
+    let mut did_something = false;
+    if let Some(out) = args.out {
+        write_raw(out, &samples)?;
+        did_something = true;
     }
+    if let Some(out) = args.dataset {
+        write_dataset(out, &samples, args.stride)?;
+        did_something = true;
+    }
+    if let Some(out) = args.taps_dataset {
+        write_taps(out, args.taps_meta, &scenario, args.seed)?;
+        did_something = true;
+    }
+    if !did_something {
+        anyhow::bail!("nothing to do: pass --out, --dataset or --taps-dataset");
+    }
+    Ok(())
 }
 
 fn write_raw(out: PathBuf, samples: &[line_simulator::Sample]) -> Result<()> {
@@ -98,5 +117,28 @@ fn write_dataset(out: PathBuf, samples: &[line_simulator::Sample], stride: usize
         out.display()
     );
     eprintln!("classes [idle, run, jam, overload]: {histogram:?}");
+    Ok(())
+}
+
+fn write_taps(out: PathBuf, meta: Option<PathBuf>, scenario: &Scenario, seed: u64) -> Result<()> {
+    // The tap channel is independent of the current stream (own RNG, own
+    // clock), so requesting it alongside --out/--dataset changes neither.
+    let events = taps::generate(scenario, seed);
+    let histogram = taps::verdict_histogram(&events);
+    let file = fs::File::create(&out).with_context(|| format!("creating {}", out.display()))?;
+    let rows = taps::write_dataset_csv(&events, file)?;
+    eprintln!(
+        "written {rows} tap windows ({} samples @ {} Hz) to {}",
+        taps::TAP_WINDOW,
+        taps::TAP_SAMPLE_RATE_HZ,
+        out.display()
+    );
+    eprintln!("verdicts [good, cracked]: {histogram:?}");
+    if let Some(meta) = meta {
+        let file =
+            fs::File::create(&meta).with_context(|| format!("creating {}", meta.display()))?;
+        let rows = taps::write_meta_csv(&events, file)?;
+        eprintln!("written {rows} tap meta rows to {}", meta.display());
+    }
     Ok(())
 }

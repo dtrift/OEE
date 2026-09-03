@@ -1,0 +1,10 @@
+task: q
+seed: 2026
+float val accuracy: 1.0000
+int8 val accuracy (interp): 1.0000
+windows: val 171
+sha256: 951fcc54d15e972497c089311405a3bf247415674b114c5c982b84a350e03435
+confusion matrix (rows=true, cols=pred):
+             good   cracked
+  good        121         0
+cracked          0        50

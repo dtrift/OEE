@@ -16,7 +16,7 @@ fn main() {
     let device = Default::default();
     B::seed(&device, 42);
 
-    let model = trainer::model::ModelA::<B>::init(&device);
+    let model = trainer::model::ModelCnn::<B>::init(&device, &trainer::TaskSpec::a());
 
     let input = Tensor::<B, 3>::from_floats([[[0.5f32; 128]]], &device);
     let logits = model.forward(input.clone());

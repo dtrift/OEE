@@ -3158,6 +3158,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mqtt-min"
+version = "0.1.0"
+
+[[package]]
 name = "naga"
 version = "29.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3266,8 +3270,14 @@ dependencies = [
 name = "nodes"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "clap",
+ "csv",
+ "exporter",
  "features-cli",
+ "line-simulator",
  "microflow",
+ "mqtt-min",
  "nalgebra",
 ]
 

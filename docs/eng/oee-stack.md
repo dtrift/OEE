@@ -14,11 +14,11 @@
 
 ## First-party crates
 
-| Workspace        | Crates                                                                                              | Dependencies                    |
-| ---------------- | --------------------------------------------------------------------------------------------------- | ------------------------------- |
-| root             | `line-simulator`, `nodes`, `oee-aggregator`, `features-cli` (`no_std`), `ml/exporter`, `ml/trainer` | see "Rust: direct dependencies" |
-| `firmware/`      | `board`, `firmware-a`, `firmware-q`, `firmware-p`                                                   | none                            |
-| `fork/microflow` | `microflow` (runtime), `microflow-macros` (proc-macro)                                              | see the "Fork" section          |
+| Workspace        | Crates                                                                                                          | Dependencies                    |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| root             | `line-simulator`, `nodes`, `oee-aggregator`, `features-cli` (`no_std`), `ml/exporter`, `ml/trainer`, `mqtt-min` | see "Rust: direct dependencies" |
+| `firmware/`      | `board`, `firmware-a`, `firmware-q`, `firmware-p`                                                               | none                            |
+| `fork/microflow` | `microflow` (runtime), `microflow-macros` (proc-macro)                                                          | see the "Fork" section          |
 
 ## Rust: direct dependencies (root workspace)
 
@@ -26,9 +26,10 @@ Since week 3 (the D6 bridge) and the Rust-ML track, dependencies are spread acro
 
 - `line-simulator` — `rand`, `rand_distr`, `serde`, `toml`, `csv`, `clap`, `anyhow`;
 - `features-cli` — `libm` (no_std transcendentals for the features, week 3, D4);
-- `nodes` — `microflow` (path → the fork), `features-cli` (path), `nalgebra` (week 3, D6);
+- `nodes` — `microflow` (path → the fork), `features-cli` (path), `nalgebra` (week 3, D6); since week 4 — `csv`, `clap`, `anyhow`, `mqtt-min` (path);
 - `ml/exporter` — `flatbuffers`, `csv`, `rand`; dev: `microflow` (path), `nalgebra`;
 - `ml/trainer` — `exporter` (path), `burn`, `csv`, `rand`, `clap`, `anyhow`;
+- `mqtt-min` — no dependencies (std-only; week 4: the MQTT client instead of `rumqttc`, offline);
 - `oee-aggregator` — no dependencies.
 
 | Crate         | Version (lock)   | Purpose                       |
@@ -74,6 +75,6 @@ Week 3 scripts: `train_model_a.py` (training + PTQ + metrics), `dump_parity_fixt
 
 ## Declared but not yet wired up
 
-- MQTT library, `ratatui` (dashboard) — weeks 4–5.
+- `ratatui` (dashboard) — week 5 (the MQTT library arrived ahead of plan — our own, `mqtt-min`, week 4).
 - `esp-hal`/espup (Xtensa toolchain) — the hardware track, at shakedown time.
 - QEMU LM3S6965 (`thumbv7m-none-eabi`) — week 6, tool only.

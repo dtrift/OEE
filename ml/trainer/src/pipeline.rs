@@ -13,7 +13,7 @@ use anyhow::Context;
 
 use crate::data::{calibration_windows, class_weights, load_datasets, split, write_val_csv};
 use crate::train::train;
-use crate::{CLASS_NAMES, NUM_CLASSES};
+use crate::TaskSpec;
 
 pub struct PipelineArgs {
     pub datasets: Vec<PathBuf>,
@@ -33,26 +33,38 @@ pub struct PipelineReport {
 }
 
 pub fn run<B: burn::tensor::backend::AutodiffBackend>(
+    spec: &TaskSpec,
     args: PipelineArgs,
 ) -> anyhow::Result<PipelineReport> {
-    let windows = load_datasets(&args.datasets).map_err(anyhow::Error::msg)?;
-    let counts = class_counts(&windows);
+    let windows = load_datasets(spec, &args.datasets).map_err(anyhow::Error::msg)?;
+    let counts = class_counts(spec, &windows);
     println!("dataset: {} windows, classes {:?}", windows.len(), counts);
-    let (train_windows, val) = split(&windows);
+    let (train_windows, val) = split(spec, &windows);
     println!(
         "split: train {} ({:?}), val {} ({:?})",
         train_windows.len(),
-        class_counts(&train_windows),
+        class_counts(spec, &train_windows),
         val.len(),
-        class_counts(&val)
+        class_counts(spec, &val)
     );
-    write_val_csv(&val, &args.val_csv).map_err(anyhow::Error::msg)?;
+    write_val_csv(spec, &val, &args.val_csv).map_err(anyhow::Error::msg)?;
 
     let device = B::Device::default();
-    let weights = class_weights(&train_windows.iter().map(|w| w.label).collect::<Vec<_>>());
-    let model = train::<B>(&device, &train_windows, args.epochs, 64, 1e-3, weights);
+    let weights = class_weights(
+        spec,
+        &train_windows.iter().map(|w| w.label).collect::<Vec<_>>(),
+    );
+    let model = train::<B>(
+        &device,
+        spec,
+        &train_windows,
+        args.epochs,
+        64,
+        1e-3,
+        weights,
+    );
 
-    let float_model = crate::model::to_float_model(&model);
+    let float_model = crate::model::to_float_model(spec, &model);
     exporter::weights::write_float_model(&float_model, &args.float_out)
         .map_err(anyhow::Error::msg)?;
     println!("float weights: {}", args.float_out.display());
@@ -70,10 +82,10 @@ pub fn run<B: burn::tensor::backend::AutodiffBackend>(
     // Self-check: the interp reference over the quantized file on val windows.
     let interp =
         exporter::interp::InterpModel::from_bytes(bytes.clone()).map_err(anyhow::Error::msg)?;
-    let (float_acc, int8_acc, confusion) = evaluate(&interp, &model, &val, &device);
+    let (float_acc, int8_acc, confusion) = evaluate::<B>(spec, &interp, &model, &val, &device);
     println!("float (burn) val accuracy: {float_acc:.4}");
     println!("int8 (interp) val accuracy: {int8_acc:.4}");
-    print_confusion(&confusion);
+    print_confusion(spec, &confusion);
 
     let sha = sha256_hex(&bytes);
     println!("sha256: {sha}");
@@ -89,21 +101,23 @@ pub fn run<B: burn::tensor::backend::AutodiffBackend>(
 /// Evaluates both heads on the val split: the burn float model and the
 /// quantized model through the interp reference.
 fn evaluate<B: burn::tensor::backend::Backend>(
+    spec: &TaskSpec,
     interp: &exporter::interp::InterpModel,
-    model: &crate::model::ModelA<B>,
+    model: &crate::model::ModelCnn<B>,
     val: &[crate::data::Window],
     device: &B::Device,
 ) -> (f32, f32, Vec<Vec<usize>>) {
     let rows: Vec<Vec<f32>> = val.iter().map(|w| w.values.clone()).collect();
-    let probs = model.forward_softmax(crate::model::windows_to_tensor::<B>(&rows, device));
+    let probs = model.forward_softmax(crate::model::windows_to_tensor::<B>(spec, &rows, device));
     let float_probs: Vec<f32> = probs.into_data().iter::<f32>().collect();
-    let mut confusion = vec![vec![0usize; NUM_CLASSES]; NUM_CLASSES];
+    let classes = spec.num_classes;
+    let mut confusion = vec![vec![0usize; classes]; classes];
     let mut int8_ok = 0usize;
     let mut float_ok = 0usize;
     for (n, window) in val.iter().enumerate() {
         let out = interp.run(&window.values).expect("interp runs");
         let pred = argmax(&out.probabilities);
-        let float_pred = argmax(&float_probs[n * NUM_CLASSES..(n + 1) * NUM_CLASSES]);
+        let float_pred = argmax(&float_probs[n * classes..(n + 1) * classes]);
         confusion[window.label][pred] += 1;
         int8_ok += (pred == window.label) as usize;
         float_ok += (float_pred == window.label) as usize;
@@ -121,19 +135,23 @@ fn argmax(values: &[f32]) -> usize {
         .unwrap_or(usize::MAX)
 }
 
-fn class_counts(windows: &[crate::data::Window]) -> Vec<usize> {
-    let mut counts = vec![0usize; NUM_CLASSES];
+fn class_counts(spec: &TaskSpec, windows: &[crate::data::Window]) -> Vec<usize> {
+    let mut counts = vec![0usize; spec.num_classes];
     for w in windows {
         counts[w.label] += 1;
     }
     counts
 }
 
-fn print_confusion(confusion: &[Vec<usize>]) {
-    let header: String = CLASS_NAMES.iter().map(|n| format!("{n:>10}")).collect();
+fn print_confusion(spec: &TaskSpec, confusion: &[Vec<usize>]) {
+    let header: String = spec
+        .class_names
+        .iter()
+        .map(|n| format!("{n:>10}"))
+        .collect();
     println!("confusion matrix (rows=true, cols=pred):");
     println!("       {header}");
-    for (label, row) in CLASS_NAMES.iter().zip(confusion) {
+    for (label, row) in spec.class_names.iter().zip(confusion) {
         let cells: String = row.iter().map(|v| format!("{v:>10}")).collect();
         println!("{label:>6} {cells}");
     }

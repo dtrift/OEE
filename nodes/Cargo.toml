@@ -15,3 +15,17 @@ features-cli = { path = "../features-cli" }
 # The same nalgebra the fork uses (redirected to the fork's git patch by the
 # workspace-level [patch.crates-io]).
 nalgebra = { version = "0.32", default-features = false, features = ["macros"] }
+# Week 4 (D1): the run/tap CSV sources.
+csv = { workspace = true }
+# Week 4 (D0/D2, deviation): MQTT publishing over the minimal own client
+# (rumqttc is not fetchable offline — see docs/…/week4-gate.md).
+mqtt-min = { path = "../mqtt-min" }
+# The node CLI (bin): argument parsing + error reporting.
+clap = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+# Integration tests regenerate the simulator streams in-process.
+line-simulator = { path = "../line-simulator" }
+# The interp reference for the microflow-vs-float parity check.
+exporter = { path = "../ml/exporter" }

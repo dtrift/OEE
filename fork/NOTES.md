@@ -254,3 +254,17 @@ Export seams (burn 0.21 → TFLite, pinned by trainer tests):
   does not retrigger cargo. After a pipeline run: `touch` the test sources
   (`ml/exporter/tests/ml_metrics.rs`, `model_a_parity.rs`, `nodes/src/a.rs`)
   before re-running the microflow-side tests (see `ml/README.md`).
+
+## Week 4 — nodes A/Q: no fork changes, two cross-tree facts
+
+- The fork is untouched this week; `#[model]` baked the new
+  `ml/models/model_q.tflite` (input `[1,1024,1]`, 6 real ops — the same
+  minimal rust-born graph family as model_a) with no parser/codegen changes.
+- The runtime model-path convention extends to test binaries (see the week-3
+  note): `#[model]` resolves at compile time from the workspace root, but
+  runtime readers run with the package dir as cwd — `nodes` integration
+  tests load `../ml/models/model_q.tflite` through the exporter interp.
+- MQTT deviates from the plan's `rumqttc`: an own minimal client (`mqtt-min`,
+  std-only, QoS 0) because the offline sandbox has neither the crate nor a
+  broker; see `docs/eng/week4-gate.md`, Deviations. The aggregator (week 5)
+  will add SUBSCRIBE to the same crate.

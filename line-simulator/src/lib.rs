@@ -11,6 +11,7 @@ pub mod dataset;
 pub mod fsm;
 pub mod scenario;
 pub mod signal;
+pub mod taps;
 
 use rand::{rngs::StdRng, SeedableRng};
 
