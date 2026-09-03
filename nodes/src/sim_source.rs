@@ -252,6 +252,90 @@ impl<R: Read, M: Read> SensorSource for TapSource<R, M> {
     }
 }
 
+/// IR-barrier event source for node P (`Sample = u8`, the barrier level).
+///
+/// Input: the simulator's belt-events CSV (`t_ms,ir`) — level *changes*
+/// only, starting from the idle baseline row. Malformed rows are skipped
+/// and counted (error isolation: a bad row must never kill the counter);
+/// a level row whose value is not 0/1 counts as bad too.
+pub struct IrSource<R: Read> {
+    reader: csv::Reader<R>,
+    /// t_ms of the last served row.
+    last_t_ms: u32,
+    /// Barrier level of the last served row (edge detection input).
+    last_level: Option<u8>,
+    bad_rows: usize,
+}
+
+impl<R: Read> IrSource<R> {
+    /// Wraps a belt-events CSV (`t_ms,ir`).
+    pub fn new(data: R) -> Self {
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(false)
+            .from_reader(data);
+        let header_ok = reader
+            .headers()
+            .map(|h| h.iter().eq(["t_ms", "ir"]))
+            .unwrap_or(false);
+        Self {
+            reader,
+            last_t_ms: 0,
+            last_level: None,
+            bad_rows: usize::from(!header_ok),
+        }
+    }
+
+    /// Time of the last served event, ms.
+    pub fn last_t_ms(&self) -> u32 {
+        self.last_t_ms
+    }
+
+    /// Malformed rows skipped so far (the error-isolation counter).
+    pub fn bad_rows(&self) -> usize {
+        self.bad_rows
+    }
+
+    /// Reads the next level change: `(t_ms, level)`. The initial baseline
+    /// row (0,0) is served like any other — the edge detector decides.
+    pub fn next_event(&mut self) -> Result<(u32, u8), SourceError> {
+        loop {
+            let record = match self.reader.records().next() {
+                None => return Err(SourceError::Exhausted),
+                Some(Err(_)) => {
+                    self.bad_rows += 1;
+                    continue;
+                }
+                Some(Ok(record)) => record,
+            };
+            let parse = (|| -> Option<(u32, u8)> {
+                let t_ms = record.get(0)?.parse().ok()?;
+                let level = record.get(1)?.parse::<u8>().ok()?;
+                (level <= 1).then_some((t_ms, level))
+            })();
+            match parse {
+                Some((t_ms, level)) => {
+                    self.last_t_ms = t_ms;
+                    self.last_level = Some(level);
+                    return Ok((t_ms, level));
+                }
+                None => self.bad_rows += 1,
+            }
+        }
+    }
+}
+
+impl<R: Read> SensorSource for IrSource<R> {
+    type Sample = u8;
+
+    /// Serves barrier levels (the timestamps ride along via
+    /// [`IrSource::last_t_ms`]; node P is event-driven — `WindowSpec(P)` is
+    /// `None`, there is nothing to window here).
+    fn next_sample(&mut self) -> Result<u8, SourceError> {
+        self.next_event().map(|(_, level)| level)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,6 +370,41 @@ mod tests {
     fn sim_source_rejects_wrong_header_by_dirty_flag() {
         let mut source = SimSource::new("a,b,c\n1,2,3\n".as_bytes());
         assert!(source.take_dirty(), "a wrong header marks the window dirty");
+    }
+
+    #[test]
+    fn ir_source_streams_level_changes() {
+        let text = "t_ms,ir\n0,0\n400,1\n430,0\n800,1\n";
+        let mut source = IrSource::new(text.as_bytes());
+        assert_eq!(source.next_event(), Ok((0, 0)));
+        assert_eq!(source.last_t_ms(), 0);
+        assert_eq!(source.next_event(), Ok((400, 1)));
+        assert_eq!(source.next_event(), Ok((430, 0)));
+        assert_eq!(source.next_event(), Ok((800, 1)));
+        assert_eq!(source.last_t_ms(), 800);
+        assert_eq!(source.next_event(), Err(SourceError::Exhausted));
+    }
+
+    #[test]
+    fn ir_source_skips_bad_rows() {
+        // A malformed row and a level outside 0/1 are skipped, not fatal.
+        let text = "t_ms,ir\n0,0\nbogus,row\n400,1\n430,7\n500,0\n";
+        let mut source = IrSource::new(text.as_bytes());
+        assert_eq!(source.next_event(), Ok((0, 0)));
+        assert_eq!(source.next_event(), Ok((400, 1)));
+        assert_eq!(source.bad_rows(), 1, "only the malformed row so far");
+        // The invalid level (7) is skipped as bad, then the good row flows.
+        assert_eq!(source.next_event(), Ok((500, 0)));
+        assert_eq!(source.bad_rows(), 2);
+    }
+
+    #[test]
+    fn ir_source_rejects_wrong_header_by_bad_row_count() {
+        let mut source = IrSource::new("a,b\n1,2\n".as_bytes());
+        assert_eq!(source.bad_rows(), 1, "a wrong header is a setup error");
+        // The single data row has an invalid level (2) — skipped too.
+        assert_eq!(source.next_event(), Err(SourceError::Exhausted));
+        assert_eq!(source.bad_rows(), 2);
     }
 
     /// Builds a full-width tap dataset row (2 + WINDOW columns): zeros with

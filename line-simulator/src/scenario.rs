@@ -90,6 +90,82 @@ impl Taps {
     }
 }
 
+/// Conveyor-belt channel parameters (week 5, D1): parts pass an IR barrier
+/// while the machine runs — the raw material for node P (Performance).
+/// Defaults match the nominal line cadence (one part per 400 ms, the same
+/// period as the taps channel: both sample the same nominal production
+/// rate through independent RNG streams).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Belt {
+    /// Nominal part interval (one slot every period), ms.
+    pub period_ms: u32,
+    /// Pass-time jitter around the slot (fraction of the period, seeded).
+    pub jitter: f32,
+    /// Probability that a part re-triggers the barrier (the anti-double-
+    /// count case: two pulses, still one part).
+    pub double_probability: f32,
+    /// Probability that a slot passes with no part at all (no IR events,
+    /// not in the truth either).
+    pub skip_probability: f32,
+    /// IR-barrier blocked time per pulse, ms.
+    pub pulse_ms: u32,
+    /// Gap between the two pulses of a double, ms.
+    pub double_gap_ms: u32,
+}
+
+impl Default for Belt {
+    fn default() -> Self {
+        Self {
+            period_ms: 400,
+            jitter: 0.15,
+            double_probability: 0.1,
+            skip_probability: 0.05,
+            pulse_ms: 30,
+            double_gap_ms: 40,
+        }
+    }
+}
+
+impl Belt {
+    /// Validation: physically meaningful values only, and the pulses of a
+    /// double must both fit strictly inside one nominal slot (they must not
+    /// collide with the next part, whose earliest pass is
+    /// `period_ms * (1 - jitter)` after the previous slot).
+    pub fn validate(&self) -> Result<(), String> {
+        if self.period_ms == 0 {
+            return Err("belt.period_ms must be positive".into());
+        }
+        if !(0.0..=0.4).contains(&self.jitter) {
+            return Err("belt.jitter must be within [0, 0.4]".into());
+        }
+        for (name, value) in [
+            ("double_probability", self.double_probability),
+            ("skip_probability", self.skip_probability),
+        ] {
+            if !(0.0..=1.0).contains(&value) {
+                return Err(format!("belt.{name} must be within [0, 1]"));
+            }
+        }
+        if self.pulse_ms == 0 {
+            return Err("belt.pulse_ms must be positive".into());
+        }
+        if !(1..=10_000).contains(&self.double_gap_ms) {
+            return Err("belt.double_gap_ms must be within [1, 10000]".into());
+        }
+        let pulses_span = 2.0 * self.pulse_ms as f32 + self.double_gap_ms as f32;
+        let earliest_next = self.period_ms as f32 * (1.0 - self.jitter);
+        if pulses_span >= earliest_next {
+            return Err(format!(
+                "belt: a double spans {pulses_span:.0} ms, parts can pass as close as \
+                 {earliest_next:.0} ms — pulses would collide; widen period_ms or \
+                 shrink pulse_ms/double_gap_ms"
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Signal noise parameters (level is a fraction of the envelope amplitude).
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -166,6 +242,10 @@ pub struct Scenario {
     /// defaults apply and taps are only emitted when the CLI asks for them.
     #[serde(default)]
     pub taps: Taps,
+    /// Conveyor-belt channel (week 5). Optional like `[taps]`: the defaults
+    /// apply and events are only emitted when the CLI asks for them.
+    #[serde(default)]
+    pub belt: Belt,
 }
 
 fn default_envelope() -> Envelope {
@@ -187,6 +267,7 @@ impl Scenario {
         let scenario: Self = toml::from_str(text).map_err(|e| format!("scenario: {e}"))?;
         ScenarioEvent::validate(&scenario.events)?;
         scenario.taps.validate()?;
+        scenario.belt.validate()?;
         Ok(scenario)
     }
 }
@@ -241,6 +322,31 @@ state = "Jam"
         assert!(Scenario::parse(bad).is_err());
         let nyquist = "duration_ms = 1\nevents = []\n[taps]\ngood_freq_hz = 9000.0\n";
         assert!(Scenario::parse(nyquist).is_err());
+    }
+
+    #[test]
+    fn parses_belt_section() {
+        let text = "duration_ms = 1\nevents = []\n[belt]\nperiod_ms = 520\nbogus = 1\n";
+        assert!(
+            Scenario::parse(text).is_err(),
+            "unknown fields are rejected"
+        );
+        let text = "duration_ms = 1\nevents = []\n[belt]\nperiod_ms = 520\njitter = 0.2\n";
+        let s = Scenario::parse(text).expect("parse");
+        assert_eq!(s.belt.period_ms, 520);
+        assert_eq!(
+            s.belt.double_probability,
+            Belt::default().double_probability
+        );
+    }
+
+    #[test]
+    fn rejects_bad_belt() {
+        let bad = "duration_ms = 1\nevents = []\n[belt]\njitter = 0.9\n";
+        assert!(Scenario::parse(bad).is_err());
+        // Pulses of a double wider than the shortest part interval: reject.
+        let collide = "duration_ms = 1\nevents = []\n[belt]\nperiod_ms = 100\njitter = 0.0\n";
+        assert!(Scenario::parse(collide).is_err());
     }
 
     #[test]

@@ -4,6 +4,7 @@ members = [
     "line-simulator",
     "nodes",
     "oee-aggregator",
+    "oee-dashboard",
     "features-cli",
     "ml/exporter",
     "ml/trainer",

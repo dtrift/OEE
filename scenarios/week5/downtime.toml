@@ -1,0 +1,48 @@
+# Week-5 experiment scenario 2 of 4: "downtime" — long idle stretches
+# between short runs. The truth: A ~0.45 (27 s of run in 60 s), the rest
+# nominal.
+
+duration_ms = 60000
+
+[[events]]
+t_ms = 2000
+state = "Run"
+
+[[events]]
+t_ms = 16000
+state = "Idle"
+
+[[events]]
+t_ms = 30000
+state = "Run"
+
+[[events]]
+t_ms = 43000
+state = "Jam"
+
+[[events]]
+t_ms = 43400
+state = "Run"
+
+[[events]]
+t_ms = 53000
+state = "Idle"
+
+[envelope]
+idle = 0.4
+run = 2.0
+jam = 3.2
+overload = 4.5
+
+[noise]
+sigma_a = 0.13
+
+[taps]
+period_ms = 400
+crack_probability = 0.1
+
+[belt]
+period_ms = 400
+jitter = 0.15
+double_probability = 0.12
+skip_probability = 0.06

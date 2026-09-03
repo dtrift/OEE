@@ -7,6 +7,7 @@
 //!
 //! Determinism: one seed -> a bit-identical CSV (checked by a test).
 
+pub mod belt;
 pub mod dataset;
 pub mod fsm;
 pub mod scenario;

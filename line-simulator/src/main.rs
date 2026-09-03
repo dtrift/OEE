@@ -2,7 +2,8 @@
 /// `line-simulator --scenario base.toml --seed 42 --out run1.csv`
 /// (raw stream), `--dataset windows.csv [--stride 64]` (labeled training
 /// windows, D4), and/or `--taps-dataset taps.csv [--taps-meta taps_meta.csv]`
-/// (the node Q tap channel, week 4 D3).
+/// (the node Q tap channel, week 4 D3), and/or `--belt-events ir.csv
+/// [--belt-meta belt_meta.csv]` (the node P belt channel, week 5 D1).
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -11,7 +12,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use line_simulator::scenario::{Scenario, SAMPLE_RATE_HZ};
-use line_simulator::{dataset, taps, Simulator};
+use line_simulator::{belt, dataset, taps, Simulator};
 
 /// Deterministic production-line simulator.
 #[derive(Parser, Debug)]
@@ -41,6 +42,14 @@ struct Args {
     /// --taps-dataset.
     #[arg(long, requires = "taps_dataset")]
     taps_meta: Option<PathBuf>,
+    /// Where to write the IR-barrier level-change CSV (t_ms,ir) — node P's
+    /// input, the `[belt]` section parameters (week 5, D1).
+    #[arg(long)]
+    belt_events: Option<PathBuf>,
+    /// Where to write the belt ground truth (t_ms,pulses); requires
+    /// --belt-events.
+    #[arg(long, requires = "belt_events")]
+    belt_meta: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -78,8 +87,33 @@ fn main() -> Result<()> {
         write_taps(out, args.taps_meta, &scenario, args.seed)?;
         did_something = true;
     }
+    if let Some(out) = args.belt_events {
+        write_belt(out, args.belt_meta, &scenario, args.seed)?;
+        did_something = true;
+    }
     if !did_something {
-        anyhow::bail!("nothing to do: pass --out, --dataset or --taps-dataset");
+        anyhow::bail!("nothing to do: pass --out, --dataset, --taps-dataset or --belt-events");
+    }
+    Ok(())
+}
+
+fn write_belt(out: PathBuf, meta: Option<PathBuf>, scenario: &Scenario, seed: u64) -> Result<()> {
+    // Like the tap channel: an independent RNG stream and clock, so asking
+    // for the belt alongside --out/--dataset/--taps-dataset changes neither.
+    let parts = belt::generate(scenario, seed);
+    let doubles = parts.iter().filter(|p| p.pulses == 2).count();
+    let file = fs::File::create(&out).with_context(|| format!("creating {}", out.display()))?;
+    let rows = belt::write_events_csv(&parts, &scenario.belt, file)?;
+    eprintln!(
+        "written {rows} IR-barrier level rows ({} parts, {doubles} doubles) to {}",
+        parts.len(),
+        out.display()
+    );
+    if let Some(meta) = meta {
+        let file =
+            fs::File::create(&meta).with_context(|| format!("creating {}", meta.display()))?;
+        let rows = belt::write_meta_csv(&parts, file)?;
+        eprintln!("written {rows} belt meta rows to {}", meta.display());
     }
     Ok(())
 }

@@ -1,12 +1,15 @@
-//! The node CLI (week 4, D1/D2/D4):
+//! The node CLI (week 4, D1/D2/D4; node P — week 5, D1):
 //!
 //!     node --kind a --input tmp/run1.csv --offline tmp/statuses.csv
 //!     node --kind q --input tmp/taps.csv --meta tmp/taps_meta.csv \
 //!         --offline tmp/verdicts.csv --mqtt 127.0.0.1:1883
+//!     node --kind p --input tmp/ir.csv --offline tmp/counts.csv \
+//!         --mqtt 127.0.0.1:1883
 //!
 //! Offline mode is the base (the D1 artifact); MQTT is layered on top and
 //! degrades to offline-only when the broker is unreachable (D5). The meta
-//! topic is published once at startup when MQTT is on.
+//! topic is published once at startup when MQTT is on; the `{node}/end`
+//! marker (the aggregator's flush signal) is published once at stream end.
 
 use std::fs::File;
 
@@ -21,6 +24,8 @@ use nodes::status::{CsvStatusLog, MultiSink};
 enum Kind {
     /// Node A: current -> status (input: run CSV).
     A,
+    /// Node P: IR-barrier events -> part count (input: belt-events CSV).
+    P,
     /// Node Q: taps -> verdict (input: taps dataset + meta CSVs).
     Q,
 }
@@ -29,6 +34,7 @@ impl std::fmt::Display for Kind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Kind::A => "a",
+            Kind::P => "p",
             Kind::Q => "q",
         })
     }
@@ -42,7 +48,7 @@ struct Args {
     #[arg(long)]
     kind: Kind,
     /// Input CSV: the simulator run CSV (`--out`) for A, the taps dataset
-    /// for Q.
+    /// for Q, the belt-events CSV for P.
     #[arg(long)]
     input: std::path::PathBuf,
     /// The taps meta CSV (`t_ms,verdict`), node Q only (timestamps).
@@ -77,6 +83,10 @@ fn main() -> Result<()> {
                     mqtt.publish_a_meta("model_a.tflite", nodes::a::WINDOW, 1600);
                     let mut sink = MultiSink(&mut log, &mut mqtt);
                     let summary = nodes::a::run_a(&mut source, &args.run_id, &mut sink);
+                    // The stream-end marker carries the stream's last time —
+                    // the aggregator closes its final window at the max of
+                    // these (for node A it is the scenario end minus a step).
+                    mqtt.publish_end("a", source.last_t_ms(), &args.run_id);
                     println!(
                         "mqtt: {} published, {} failed (offline CSV intact)",
                         mqtt.publishes(),
@@ -92,6 +102,36 @@ fn main() -> Result<()> {
                 summary.windows,
                 summary.dirty_windows,
                 summary.statuses,
+            );
+        }
+        Kind::P => {
+            let input = File::open(&args.input)
+                .with_context(|| format!("opening {}", args.input.display()))?;
+            let mut source = nodes::sim_source::IrSource::new(input);
+            let mut log = CsvStatusLog::new(
+                File::create(&args.offline)
+                    .with_context(|| format!("creating {}", args.offline.display()))?,
+            )?;
+            let summary = match &args.mqtt {
+                Some(addr) => {
+                    let mut mqtt = MqttSink::new(addr, &format!("node-{}", args.kind));
+                    mqtt.publish_p_meta();
+                    let mut sink = MultiSink(&mut log, &mut mqtt);
+                    let summary = nodes::p::run_p(&mut source, &args.run_id, &mut sink);
+                    mqtt.publish_end("p", source.last_t_ms(), &args.run_id);
+                    println!(
+                        "mqtt: {} published, {} failed (offline CSV intact)",
+                        mqtt.publishes(),
+                        mqtt.failures()
+                    );
+                    summary
+                }
+                None => nodes::p::run_p(&mut source, &args.run_id, &mut log),
+            };
+            log.flush()?;
+            println!(
+                "node p: {} rising edges, {} merged (doubles), {} parts, {} bad rows -> offline CSV",
+                summary.rising_edges, summary.merged, summary.parts, summary.bad_rows,
             );
         }
         Kind::Q => {
@@ -114,6 +154,7 @@ fn main() -> Result<()> {
                     mqtt.publish_q_meta("model_q.tflite", nodes::q::WINDOW, 16_000);
                     let mut sink = MultiSink(&mut log, &mut mqtt);
                     let summary = nodes::q::run_q(&mut source, &args.run_id, &mut sink);
+                    mqtt.publish_end("q", source.last_t_ms(), &args.run_id);
                     println!(
                         "mqtt: {} published, {} failed (offline CSV intact)",
                         mqtt.publishes(),

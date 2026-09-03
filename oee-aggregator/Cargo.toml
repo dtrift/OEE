@@ -1,9 +1,21 @@
 [package]
 name = "oee-aggregator"
-description = "MQTT subscription, OEE = A x P x Q formula, publishing for the dashboard (week 5)"
+description = "MQTT subscription, OEE = A x P x Q over event-time windows, publishing for the dashboard (week 5)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [dependencies]
+# The MQTT client (SUBSCRIBE since week 5 D2) and the CSV log.
+mqtt-min = { path = "../mqtt-min" }
+csv = { workspace = true }
+# The aggregator CLI (bin): argument parsing + error reporting.
+clap = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+# The experiment test (tests/experiment.rs) drives the whole bench
+# in-process: simulator streams through the real nodes.
+line-simulator = { path = "../line-simulator" }
+nodes = { path = "../nodes" }

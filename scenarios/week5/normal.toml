@@ -1,0 +1,49 @@
+# Week-5 experiment scenario 1 of 4: "normal" — mostly-run with two short
+# jams (the base.toml pattern) plus the belt and taps channels. The truth:
+# A ~0.91 (54.8 s of run in 60 s), P ~1.0 (belt at the nominal 400 ms),
+# Q ~0.95 (5% cracked).
+
+duration_ms = 60000
+
+[[events]]
+t_ms = 2000
+state = "Run"
+
+[[events]]
+t_ms = 20000
+state = "Jam"
+
+[[events]]
+t_ms = 20400
+state = "Run"
+
+[[events]]
+t_ms = 40000
+state = "Overload"
+
+[[events]]
+t_ms = 40800
+state = "Run"
+
+[[events]]
+t_ms = 58000
+state = "Idle"
+
+[envelope]
+idle = 0.4
+run = 2.0
+jam = 3.2
+overload = 4.5
+
+[noise]
+sigma_a = 0.12
+
+[taps]
+period_ms = 400
+crack_probability = 0.05
+
+[belt]
+period_ms = 400
+jitter = 0.15
+double_probability = 0.1
+skip_probability = 0.05

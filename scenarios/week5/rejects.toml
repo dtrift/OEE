@@ -1,0 +1,48 @@
+# Week-5 experiment scenario 4 of 4: "rejects" — half the tap-tested parts
+# are cracked. The truth: Q ~0.5 with A and P nominal; isolates the Quality
+# channel of the measured-vs-truth table.
+
+duration_ms = 60000
+
+[[events]]
+t_ms = 2000
+state = "Run"
+
+[[events]]
+t_ms = 20000
+state = "Jam"
+
+[[events]]
+t_ms = 20400
+state = "Run"
+
+[[events]]
+t_ms = 40000
+state = "Overload"
+
+[[events]]
+t_ms = 40800
+state = "Run"
+
+[[events]]
+t_ms = 58000
+state = "Idle"
+
+[envelope]
+idle = 0.4
+run = 2.0
+jam = 3.2
+overload = 4.5
+
+[noise]
+sigma_a = 0.12
+
+[taps]
+period_ms = 400
+crack_probability = 0.5
+
+[belt]
+period_ms = 400
+jitter = 0.15
+double_probability = 0.1
+skip_probability = 0.05

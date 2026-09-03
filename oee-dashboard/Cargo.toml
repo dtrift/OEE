@@ -1,0 +1,18 @@
+[package]
+name = "oee-dashboard"
+description = "ratatui TUI dashboard: live OEE/A/P/Q from oee/line1/# over mqtt-min (week 5)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# The TUI stack (the week-5 decomposition: the whole bench in Rust).
+ratatui = "0.29"
+# MQTT subscription via the minimal own client; the payload contract
+# (oee/line1/oee JSON) is shared with the aggregator — one source of truth.
+mqtt-min = { path = "../mqtt-min" }
+oee-aggregator = { path = "../oee-aggregator" }
+# The CLI.
+clap = { workspace = true }
+anyhow = { workspace = true }
