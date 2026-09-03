@@ -150,15 +150,18 @@ shakedown runs in parallel through fixed contracts:
 
 ## Status
 
-Done: weeks 1–3 (the Conv1D kernel, the macro parser + codegen, the ML
-pipeline) and the rust-ml stretch track (the whole train → PTQ → export
-cycle in Rust) — the checklists and artifacts are in the gate docs:
+Done: weeks 1–4 (the Conv1D kernel, the macro parser + codegen, the ML
+pipeline, nodes A and Q end-to-end with MQTT publishing — Q survived the
+cut-line) and the rust-ml stretch track (the whole train → PTQ → export
+cycle in Rust, now task-parameterized for A and Q) — the checklists and
+artifacts are in the gate docs:
 [`week1-gate.md`](./docs/eng/week1-gate.md),
 [`week2-gate.md`](./docs/eng/week2-gate.md),
 [`week3-gate.md`](./docs/eng/week3-gate.md),
-[`rust-ml-gate.md`](./docs/eng/rust-ml-gate.md).
+[`rust-ml-gate.md`](./docs/eng/rust-ml-gate.md),
+[`week4-gate.md`](./docs/eng/week4-gate.md).
 
-Next: nodes and MQTT (weeks 4–5), QEMU LM3S6965 with criterion
-benchmarks (week 6) — the full plan is in
+Next: node P, the OEE aggregator and the dashboard (week 5), QEMU LM3S6965
+with criterion benchmarks (week 6) — the full plan is in
 [`docs/eng/plan.md`](./docs/eng/plan.md) (Russian original:
 [`docs/rus/plan.md`](./docs/rus/plan.md)).

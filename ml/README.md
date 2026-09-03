@@ -11,12 +11,24 @@ Two paths live side by side:
   [tmp/docs/decompose/rust-ml.rus.md](../tmp/docs/decompose/rust-ml.rus.md)
   and the facts in [fork/NOTES.md](../fork/NOTES.md).
 
+Since week 4 the trainer is task-parameterized: `--task a` (default) trains
+node A on `--dataset` CSVs, `--task q` trains node Q on `--taps-dataset`
+CSVs (`line-simulator --taps-dataset`). One `ModelCnn`, runtime dims
+(`trainer::TaskSpec`).
+
 ## The one-command pipeline (rust track)
 
 ```bash
+# node A (current windows):
 cargo run -p trainer --release --bin train -- \
     --datasets tmp/ds_base_1.csv ... tmp/ds_jam_42.csv \
     --calib 256 --out ml/models/model_a.tflite
+
+# node Q (tap windows, week 4):
+cargo run -p line-simulator -- --scenario scenarios/taps.toml --seed N \
+    --taps-dataset tmp/dsq_N.csv --taps-meta tmp/dsq_N_meta.csv
+cargo run -p trainer --release --bin train -- --task q \
+    --datasets tmp/dsq_*.csv --calib 256   # -> ml/models/model_q.tflite
 ```
 
 Artifacts (in `ml/models/`):
@@ -26,10 +38,15 @@ Artifacts (in `ml/models/`):
 | `model_a.tflite`      | the int8 model, born entirely in Rust                 |
 | `model_a.ops.txt`     | the operator dump (diffable against `conv1d_ops.txt`) |
 | `model_a.float`       | float weights (JSON header + f32 LE)                  |
-| `model_a.val.csv`     | the deterministic val split (`label,x000..x127`)       |
+| `model_a.val.csv`     | the deterministic val split (`label,x000..x127`)      |
 | `model_a.metrics.txt` | pipeline metrics (interp side)                        |
 | `model_a_metrics.txt` | microflow `#[model]` metrics (see below)              |
 | `model_a_parity.txt`  | parity fixtures (interp expectations)                 |
+| `model_q.tflite`      | node Q int8 model (week 4, same pipeline, `--task q`) |
+| `model_q.ops.txt`     | node Q operator dump                                  |
+| `model_q.float`       | node Q float weights                                  |
+| `model_q.val.csv`     | node Q val split (`label,x000..x1023`)                |
+| `model_q.metrics.txt` | node Q pipeline metrics + sha256                      |
 
 ## The microflow-side checks (after the pipeline)
 

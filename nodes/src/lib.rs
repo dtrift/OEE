@@ -10,6 +10,9 @@
 /// Node A: machine current -> features -> 1D-CNN -> status (idle/run/jam/overload).
 pub mod a;
 
+/// MQTT publishing sink + topics (week 4).
+pub mod mqtt_sink;
+
 /// Node P: IR barrier -> edge detector -> part counting.
 pub mod p;
 
@@ -19,11 +22,17 @@ pub mod q;
 /// Node data-source contract: SimSource (host) / sensors (firmware).
 pub mod source;
 
+/// CSV-backed sources over the simulator exports (week 4).
+pub mod sim_source;
+
+/// Window assembly, hysteresis, status sinks (week 4).
+pub mod status;
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn skeleton_imports() {
-        // Check that the stub modules compile.
+        // Check that the node modules compile.
         let _ = super::a::describe();
         let _ = super::p::describe();
         let _ = super::q::describe();

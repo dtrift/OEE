@@ -14,11 +14,11 @@
 
 ## Собственные крейты
 
-| Workspace        | Крейты                                                                                              | Зависимости                    |
-| ---------------- | --------------------------------------------------------------------------------------------------- | ------------------------------ |
-| корневой (root)  | `line-simulator`, `nodes`, `oee-aggregator`, `features-cli` (`no_std`), `ml/exporter`, `ml/trainer` | см. «Rust: прямые зависимости» |
-| `firmware/`      | `board`, `firmware-a`, `firmware-q`, `firmware-p`                                                   | нет                            |
-| `fork/microflow` | `microflow` (runtime), `microflow-macros` (proc-macro)                                              | см. разд. «Форк»               |
+| Workspace        | Крейты                                                                                                          | Зависимости                    |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| корневой (root)  | `line-simulator`, `nodes`, `oee-aggregator`, `features-cli` (`no_std`), `ml/exporter`, `ml/trainer`, `mqtt-min` | см. «Rust: прямые зависимости» |
+| `firmware/`      | `board`, `firmware-a`, `firmware-q`, `firmware-p`                                                               | нет                            |
+| `fork/microflow` | `microflow` (runtime), `microflow-macros` (proc-macro)                                                          | см. разд. «Форк»               |
 
 ## Rust: прямые зависимости (корневой workspace)
 
@@ -26,9 +26,10 @@
 
 - `line-simulator` — `rand`, `rand_distr`, `serde`, `toml`, `csv`, `clap`, `anyhow`;
 - `features-cli` — `libm` (no_std-трансцендентные для фич, неделя 3, Д4);
-- `nodes` — `microflow` (path → форк), `features-cli` (path), `nalgebra` (неделя 3, Д6);
+- `nodes` — `microflow` (path → форк), `features-cli` (path), `nalgebra` (неделя 3, Д6); с недели 4 — `csv`, `clap`, `anyhow`, `mqtt-min` (path);
 - `ml/exporter` — `flatbuffers`, `csv`, `rand`; dev: `microflow` (path), `nalgebra`;
 - `ml/trainer` — `exporter` (path), `burn`, `csv`, `rand`, `clap`, `anyhow`;
+- `mqtt-min` — без зависимостей (std-only; неделя 4: MQTT-клиент вместо `rumqttc`, офлайн);
 - `oee-aggregator` — без зависимостей.
 
 | Крейт         | Версия (lock)    | Назначение                    |
@@ -74,6 +75,6 @@
 
 ## Заявлено, но ещё не подключено
 
-- MQTT-библиотека, `ratatui` (дашборд) — недели 4–5.
+- `ratatui` (дашборд) — неделя 5 (MQTT-библиотека появилась раньше плана — своя, `mqtt-min`, неделя 4).
 - `esp-hal`/espup (тулчейн Xtensa) — колея железа, при обкатке.
 - QEMU LM3S6965 (`thumbv7m-none-eabi`) — неделя 6, только тул.

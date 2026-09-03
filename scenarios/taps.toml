@@ -1,0 +1,54 @@
+# Tap-test scenario (week 4, D3): node Q dataset seed material.
+# Long run episodes (parts flow only in Run) with a couple of idle/jam gaps;
+# the [taps] section carries the synthesis parameters. This file is the
+# ground truth for both channels: events = machine states, taps = verdicts.
+
+duration_ms = 120000
+
+[[events]]
+t_ms = 1000
+state = "Run"
+
+[[events]]
+t_ms = 40000
+state = "Jam"
+
+[[events]]
+t_ms = 42000
+state = "Run"
+
+[[events]]
+t_ms = 80000
+state = "Idle"
+
+[[events]]
+t_ms = 82000
+state = "Run"
+
+[[events]]
+t_ms = 118000
+state = "Idle"
+
+[envelope]
+idle = 0.4
+run = 2.0
+jam = 3.2
+overload = 4.5
+
+[noise]
+sigma_a = 0.1
+
+[taps]
+# One part every 400 ms -> ~290 taps per seed across the run episodes;
+# 30% cracked keeps the classes within 2:3 of each other.
+period_ms = 400
+crack_probability = 0.3
+good_freq_hz = 2400.0
+cracked_freq_hz = 1500.0
+good_tau_ms = 14.0
+cracked_tau_ms = 6.0
+amplitude = 0.8
+amp_jitter = 0.15
+freq_jitter = 0.08
+noise_sigma = 0.01
+crack_noise_boost = 4.0

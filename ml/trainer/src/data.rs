@@ -16,20 +16,21 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 
-use crate::{CHANNELS, NUM_CLASSES, SEED, TIMESTEPS};
+use crate::TaskSpec;
 
-/// One labeled window: `TIMESTEPS * CHANNELS` values, `(t, c)` row-major.
+/// One labeled window: `timesteps * CHANNELS` values, `(t, c)` row-major.
 #[derive(Clone, Debug)]
 pub struct Window {
     pub label: usize,
     pub values: Vec<f32>,
 }
 
-/// Loads `label,state,x000..x127` CSVs (the `line-simulator --dataset` format).
-pub fn load_datasets(paths: &[std::path::PathBuf]) -> Result<Vec<Window>, String> {
+/// Loads `label,state,x000..` CSVs (the simulator `--dataset`/`--taps-dataset`
+/// format) for the given task.
+pub fn load_datasets(spec: &TaskSpec, paths: &[std::path::PathBuf]) -> Result<Vec<Window>, String> {
     let mut windows = Vec::new();
     for path in paths {
-        windows.extend(load_csv(path)?);
+        windows.extend(load_csv(spec, path)?);
     }
     if windows.is_empty() {
         return Err("no windows loaded: pass at least one dataset CSV".into());
@@ -37,18 +38,19 @@ pub fn load_datasets(paths: &[std::path::PathBuf]) -> Result<Vec<Window>, String
     Ok(windows)
 }
 
-fn load_csv(path: &Path) -> Result<Vec<Window>, String> {
+fn load_csv(spec: &TaskSpec, path: &Path) -> Result<Vec<Window>, String> {
     let mut reader =
         csv::Reader::from_path(path).map_err(|e| format!("cannot open {}: {e}", path.display()))?;
     let headers = reader
         .headers()
         .map_err(|e| format!("cannot read the header of {}: {e}", path.display()))?;
-    let expected = 2 + TIMESTEPS * CHANNELS;
+    let expected = 2 + spec.timesteps * crate::CHANNELS;
     if headers.len() != expected {
         return Err(format!(
-            "{} has {} columns, the dataset format needs {expected} (label,state,x000..)",
+            "{} has {} columns, task {} needs {expected} (label,state,x000..)",
             path.display(),
-            headers.len()
+            headers.len(),
+            spec.name()
         ));
     }
     let mut windows = Vec::new();
@@ -58,14 +60,15 @@ fn load_csv(path: &Path) -> Result<Vec<Window>, String> {
         let label: usize = label_field
             .parse()
             .map_err(|_| format!("bad label '{label_field}' in {}", path.display()))?;
-        if label >= NUM_CLASSES {
+        if label >= spec.num_classes {
             return Err(format!(
-                "label {label} out of range in {} (0..{} expected)",
+                "label {label} out of range in {} (0..{} expected for task {})",
                 path.display(),
-                NUM_CLASSES - 1
+                spec.num_classes - 1,
+                spec.name()
             ));
         }
-        let mut values = Vec::with_capacity(TIMESTEPS * CHANNELS);
+        let mut values = Vec::with_capacity(spec.timesteps * crate::CHANNELS);
         for field in record.iter().skip(2) {
             values.push(
                 field
@@ -80,11 +83,11 @@ fn load_csv(path: &Path) -> Result<Vec<Window>, String> {
 
 /// The deterministic 85/15 split: per-class Fisher–Yates with the fixed seed
 /// (both halves keep the class profile — the Python track's property).
-pub fn split(windows: &[Window]) -> (Vec<Window>, Vec<Window>) {
-    let mut rng = StdRng::seed_from_u64(SEED);
+pub fn split(spec: &TaskSpec, windows: &[Window]) -> (Vec<Window>, Vec<Window>) {
+    let mut rng = StdRng::seed_from_u64(crate::SEED);
     let mut train = Vec::new();
     let mut val = Vec::new();
-    for label in 0..NUM_CLASSES {
+    for label in 0..spec.num_classes {
         let mut idx: Vec<usize> = windows
             .iter()
             .enumerate()
@@ -114,7 +117,7 @@ pub fn split(windows: &[Window]) -> (Vec<Window>, Vec<Window>) {
 /// `representative_dataset`): `n` draws from the train set with the fixed
 /// seed, with replacement.
 pub fn calibration_windows(train: &[Window], n: usize) -> Vec<Vec<f32>> {
-    let mut rng = StdRng::seed_from_u64(SEED);
+    let mut rng = StdRng::seed_from_u64(crate::SEED);
     let mut picked = Vec::with_capacity(n);
     for _ in 0..n {
         let at = rng.random_range(0..train.len());
@@ -125,24 +128,22 @@ pub fn calibration_windows(train: &[Window], n: usize) -> Vec<Vec<f32>> {
 
 /// Class weights: inverse frequency normalized to average 1 (the py script's
 /// `class_weights`).
-pub fn class_weights(labels: &[usize]) -> [f32; NUM_CLASSES] {
-    let mut counts = [0usize; NUM_CLASSES];
+pub fn class_weights(spec: &TaskSpec, labels: &[usize]) -> Vec<f32> {
+    let mut counts = vec![0usize; spec.num_classes];
     for &l in labels {
         counts[l] += 1;
     }
     let total = labels.len() as f32;
-    let mut weights = [0.0f32; NUM_CLASSES];
-    for (l, w) in weights.iter_mut().enumerate() {
-        *w = total / (NUM_CLASSES as f32 * counts[l].max(1) as f32);
-    }
-    weights
+    (0..spec.num_classes)
+        .map(|l| total / (spec.num_classes as f32 * counts[l].max(1) as f32))
+        .collect()
 }
 
 /// Writes the val split as a `label,x000..` CSV (the metrics/parity input on
 /// the Rust side; the py track's `model_a_val.npz` counterpart).
-pub fn write_val_csv(val: &[Window], path: &Path) -> Result<(), String> {
+pub fn write_val_csv(spec: &TaskSpec, val: &[Window], path: &Path) -> Result<(), String> {
     let mut out = String::from("label");
-    for i in 0..TIMESTEPS * CHANNELS {
+    for i in 0..spec.timesteps * crate::CHANNELS {
         out.push_str(&format!(",x{i:03}"));
     }
     out.push('\n');
@@ -159,13 +160,14 @@ pub fn write_val_csv(val: &[Window], path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TaskSpec;
 
-    fn synthetic(n_per_class: usize) -> Vec<Window> {
-        (0..NUM_CLASSES)
+    fn synthetic(spec: &TaskSpec, n_per_class: usize) -> Vec<Window> {
+        (0..spec.num_classes)
             .flat_map(|label| {
                 (0..n_per_class).map(move |i| Window {
                     label,
-                    values: vec![label as f32 + (i % 7) as f32 * 0.1; TIMESTEPS],
+                    values: vec![label as f32 + (i % 7) as f32 * 0.1; spec.timesteps],
                 })
             })
             .collect()
@@ -173,9 +175,10 @@ mod tests {
 
     #[test]
     fn split_is_deterministic_and_keeps_profiles() {
-        let windows = synthetic(100);
-        let (train1, val1) = split(&windows);
-        let (train2, val2) = split(&windows);
+        let spec = TaskSpec::a();
+        let windows = synthetic(&spec, 100);
+        let (train1, val1) = split(&spec, &windows);
+        let (train2, val2) = split(&spec, &windows);
         assert_eq!(
             train1
                 .iter()
@@ -189,7 +192,7 @@ mod tests {
         );
         assert_eq!(val1.len(), val2.len());
         // Class profiles: the cut matches the py formula exactly.
-        for label in 0..NUM_CLASSES {
+        for label in 0..spec.num_classes {
             let n = windows.iter().filter(|w| w.label == label).count();
             let expected_train = ((n as f64) * (1.0 - 0.15)) as usize;
             let got_train = train1.iter().filter(|w| w.label == label).count();
@@ -203,8 +206,9 @@ mod tests {
     fn class_weights_are_inverse_frequency() {
         // 8 windows: 4 of class 0, 2 of class 1, 1+1 of classes 2/3 — the py
         // formula total / (NUM_CLASSES * count).
+        let spec = TaskSpec::a();
         let labels = [0, 0, 0, 0, 1, 1, 2, 3];
-        let w = class_weights(&labels);
+        let w = class_weights(&spec, &labels);
         assert!((w[0] - 8.0 / (4.0 * 4.0)).abs() < 1e-6);
         assert!((w[1] - 8.0 / (4.0 * 2.0)).abs() < 1e-6);
         assert!((w[2] - 8.0 / (4.0 * 1.0)).abs() < 1e-6);
@@ -212,8 +216,19 @@ mod tests {
     }
 
     #[test]
+    fn class_weights_q() {
+        // 2-class task: balanced labels -> uniform weights.
+        let spec = TaskSpec::q();
+        let labels = [0, 0, 0, 1, 1, 1];
+        let w = class_weights(&spec, &labels);
+        assert!((w[0] - 1.0).abs() < 1e-6);
+        assert!((w[1] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
     fn calibration_sampler_is_deterministic() {
-        let windows = synthetic(10);
+        let spec = TaskSpec::a();
+        let windows = synthetic(&spec, 10);
         let a = calibration_windows(&windows, 8);
         let b = calibration_windows(&windows, 8);
         assert_eq!(a, b);

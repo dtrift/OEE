@@ -1,8 +1,11 @@
-//! The burn model A (track D4): `Conv1d(8,k=3) → ReLU → AvgPool(2) →
-//! Conv1d(16,k=3) → ReLU → AvgPool(2) → Flatten → Linear(4)` on logits —
-//! softmax is NOT part of the trainable graph (it is exported as the SOFTMAX
-//! operator). A separate `forward_softmax` runs the full float inference for
-//! parity checks.
+//! The burn model of the Conv1D family (track D4): `Conv1d(8,k=3) → ReLU →
+//! AvgPool(2) → Conv1d(16,k=3) → ReLU → AvgPool(2) → Flatten → Linear(C)` on
+//! logits — softmax is NOT part of the trainable graph (it is exported as the
+//! SOFTMAX operator). A separate `forward_softmax` runs the full float
+//! inference for parity checks.
+//!
+//! Week 4 (D4): const-generic over the window `T` and the head `C` — node A
+//! (`128 → 4`) and node Q (`1024 → 2`) are the same family, one type.
 //!
 //! Layout facts pinned here (D4.2, the "subtle bugs" place):
 //! - burn works channel-first `[B, C, L]`; the forward **transposes before
@@ -19,11 +22,25 @@ use burn::nn::{Linear, LinearConfig, PaddingConfig1d, Relu};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor, TensorData};
 
-use crate::{CHANNELS, NUM_CLASSES, TIMESTEPS};
+use crate::TaskSpec;
+use crate::CHANNELS;
 
-/// The trainable model (logits head).
+/// FC input length after the conv/pool chain: `T → T-2 → /2 → -2 → /2`,
+/// times the 16 second-layer filters.
+pub const fn fc_in_units(timesteps: usize) -> usize {
+    let t = timesteps - 2;
+    let t = t / 2;
+    let t = t - 2;
+    let t = t / 2;
+    t * 16
+}
+
+/// The trainable model (logits head). One struct for the whole Conv1D
+/// family — the window `T` and head `C` are runtime parameters of
+/// [`ModelCnn::init`] (burn's dims are dynamic anyway; its `Module` derive
+/// does not carry const generics, hence runtime, not `const`).
 #[derive(Module, Debug)]
-pub struct ModelA<B: Backend> {
+pub struct ModelCnn<B: Backend> {
     conv1: Conv1d<B>,
     relu1: Relu,
     pool1: AvgPool1d,
@@ -33,8 +50,10 @@ pub struct ModelA<B: Backend> {
     fc: Linear<B>,
 }
 
-impl<B: Backend> ModelA<B> {
-    pub fn init(device: &B::Device) -> Self {
+impl<B: Backend> ModelCnn<B> {
+    /// Builds the model for a task spec (the conv stack is task-independent;
+    /// only the FC input and head sizes depend on `T`/`C`).
+    pub fn init(device: &B::Device, spec: &TaskSpec) -> Self {
         Self {
             conv1: Conv1dConfig::new(CHANNELS, 8, 3)
                 .with_padding(PaddingConfig1d::Valid)
@@ -46,24 +65,24 @@ impl<B: Backend> ModelA<B> {
                 .init(device),
             relu2: Relu::new(),
             pool2: AvgPool1dConfig::new(2).with_stride(2).init(),
-            fc: LinearConfig::new(30 * 16, NUM_CLASSES).init(device),
+            fc: LinearConfig::new(fc_in_units(spec.timesteps), spec.num_classes).init(device),
         }
     }
 
-    /// Logits `[B, NUM_CLASSES]` from windows `[B, C=1, T=128]`.
+    /// Logits `[B, C]` from windows `[B, CH=1, T]`.
     pub fn forward(&self, x: Tensor<B, 3>) -> Tensor<B, 2> {
-        let x = self.conv1.forward(x); // [B, 8, 126]
+        let x = self.conv1.forward(x); // [B, 8, T-2]
         let x = self.relu1.forward(x);
-        let x = self.pool1.forward(x); // [B, 8, 63]
-        let x = self.conv2.forward(x); // [B, 16, 61]
+        let x = self.pool1.forward(x); // [B, 8, (T-2)/2]
+        let x = self.conv2.forward(x); // [B, 16, (T-2)/2-2]
         let x = self.relu2.forward(x);
-        let x = self.pool2.forward(x); // [B, 16, 30]
+        let x = self.pool2.forward(x); // [B, 16, ((T-2)/2-2)/2]
                                        // Channel-first → time-first, so flatten() reads (T, F) row-major —
                                        // the TFLite FC input order (see the module docs).
-        self.fc.forward(x.swap_dims(1, 2).flatten(1, 2)) // [B, 4]
+        self.fc.forward(x.swap_dims(1, 2).flatten(1, 2)) // [B, C]
     }
 
-    /// Softmax probabilities `[B, NUM_CLASSES]` (float parity / evaluation).
+    /// Softmax probabilities `[B, C]` (float parity / evaluation).
     pub fn forward_softmax(&self, x: Tensor<B, 3>) -> Tensor<B, 2> {
         softmax(self.forward(x))
     }
@@ -78,9 +97,14 @@ fn softmax<B: Backend>(logits: Tensor<B, 2>) -> Tensor<B, 2> {
 
 /// Extracts the trained weights as the exporter's float model (D4.5): burn
 /// `Conv1d` weights arrive `[F, C, k]`, `Linear` weights `[Out, In]`.
-pub fn to_float_model<B: Backend>(model: &ModelA<B>) -> exporter::quant::FloatModel {
+pub fn to_float_model<B: Backend>(
+    spec: &TaskSpec,
+    model: &ModelCnn<B>,
+) -> exporter::quant::FloatModel {
+    let fc_in = fc_in_units(spec.timesteps);
+    let classes = spec.num_classes;
     exporter::quant::FloatModel {
-        timesteps: TIMESTEPS,
+        timesteps: spec.timesteps,
         channels: CHANNELS,
         conv1: exporter::quant::FloatConv {
             filters: 8,
@@ -107,17 +131,16 @@ pub fn to_float_model<B: Backend>(model: &ModelA<B>) -> exporter::quant::FloatMo
         },
         pool2: 2,
         fc: exporter::quant::FloatFc {
-            out_units: NUM_CLASSES,
-            in_units: 30 * 16,
+            out_units: classes,
+            in_units: fc_in,
             // burn 0.21 Linear stores [d_input, d_output]; the TFLite FC
             // weights are [Out, In] (F6) — transpose at the export seam.
             weights: {
                 let burn_w = to_vec_f32(&model.fc.weight.val().into_data());
-                let (inp, out) = (30 * 16, NUM_CLASSES);
-                (0..out * inp)
+                (0..classes * fc_in)
                     .map(|idx| {
-                        let (j, i) = (idx / inp, idx % inp);
-                        burn_w[i * out + j]
+                        let (j, i) = (idx / fc_in, idx % fc_in);
+                        burn_w[i * classes + j]
                     })
                     .collect()
             },
@@ -126,7 +149,7 @@ pub fn to_float_model<B: Backend>(model: &ModelA<B>) -> exporter::quant::FloatMo
                 .bias
                 .as_ref()
                 .map(|b| to_vec_f32(&b.val().into_data()))
-                .unwrap_or_else(|| vec![0.0; NUM_CLASSES]),
+                .unwrap_or_else(|| vec![0.0; classes]),
         },
     }
 }
@@ -136,12 +159,16 @@ pub fn to_vec_f32(data: &TensorData) -> Vec<f32> {
     data.iter::<f32>().collect()
 }
 
-/// Windows `[B, C=1, T]` from flat `(t, c)` row-major rows.
-pub fn windows_to_tensor<B: Backend>(rows: &[Vec<f32>], device: &B::Device) -> Tensor<B, 3> {
+/// Windows `[B, CH=1, T]` from flat `(t, c)` row-major rows.
+pub fn windows_to_tensor<B: Backend>(
+    spec: &TaskSpec,
+    rows: &[Vec<f32>],
+    device: &B::Device,
+) -> Tensor<B, 3> {
     let batch = rows.len();
     let values: Vec<f32> = rows.iter().flatten().copied().collect();
     Tensor::from_data(
-        TensorData::new(values, [batch, CHANNELS, TIMESTEPS]),
+        TensorData::new(values, [batch, CHANNELS, spec.timesteps]),
         device,
     )
 }
@@ -232,18 +259,25 @@ mod tests {
         assert_eq!(got, vec![1.0, 2.0, 3.0, 4.0]);
     }
 
+    #[test]
+    fn fc_in_units_matches_the_chain() {
+        assert_eq!(fc_in_units(128), 30 * 16); // the original model A value
+        assert_eq!(fc_in_units(1024), 254 * 16); // node Q
+    }
+
     /// The layout contract (D4.2): the exporter's float forward (quant.rs's
     /// calibration math and debug tooling) must reproduce burn's forward on
     /// the same weights. Any divergence here corrupts PTQ calibration.
     #[test]
     fn burn_forward_matches_the_export_layout() {
+        let spec = crate::TaskSpec::a();
         let device = <TestBackend as burn::tensor::backend::BackendTypes>::Device::default();
         TestBackend::seed(&device, 2026);
-        let model = ModelA::<TestBackend>::init(&device);
-        let float = to_float_model(&model);
+        let model = ModelCnn::<TestBackend>::init(&device, &spec);
+        let float = to_float_model(&spec, &model);
 
         // A deterministic window with real variation.
-        let window: Vec<f32> = (0..TIMESTEPS)
+        let window: Vec<f32> = (0..128)
             .map(|t| {
                 let ts = t as f32 / 1600.0;
                 0.8 * (2.0 * core::f32::consts::PI * 50.0 * ts).sin()
@@ -253,7 +287,8 @@ mod tests {
 
         // burn side.
         let burn_logits: Vec<f32> = model
-            .forward(windows_to_tensor::<TestBackend>(
+            .forward(windows_to_tensor(
+                &spec,
                 std::slice::from_ref(&window),
                 &device,
             ))
@@ -292,11 +327,11 @@ mod tests {
                 })
                 .collect::<Vec<_>>()
         };
-        let c1 = conv(&float.conv1, &window, TIMESTEPS, CHANNELS);
+        let c1 = conv(&float.conv1, &window, 128, CHANNELS);
         let p1 = pool(&c1, 126, 8, 2);
         let c2 = conv(&float.conv2, &p1, 63, 8);
         let flat = pool(&c2, 61, 16, 2);
-        let logits: Vec<f32> = (0..NUM_CLASSES)
+        let logits: Vec<f32> = (0..4)
             .map(|j| {
                 let mut acc = float.fc.bias[j];
                 for (i, &v) in flat.iter().enumerate() {
@@ -311,5 +346,44 @@ mod tests {
         for (a, b) in burn_logits.iter().zip(&logits) {
             assert!((a - b).abs() < 1e-3, "burn {a} vs reference {b}");
         }
+    }
+
+    /// The same layout contract for the Q instantiation (week 4): the chain
+    /// math must hold for `T = 1024, C = 2` too, not only by analogy.
+    #[test]
+    fn burn_forward_matches_the_export_layout_q() {
+        let spec = crate::TaskSpec::q();
+        let device = <TestBackend as burn::tensor::backend::BackendTypes>::Device::default();
+        TestBackend::seed(&device, 2026);
+        let model = ModelCnn::<TestBackend>::init(&device, &spec);
+        let float = to_float_model(&spec, &model);
+
+        // A damped-sine window in the Q ballpark.
+        let window: Vec<f32> = (0..1024)
+            .map(|i| {
+                let t = i as f32 / 16_000.0;
+                0.8 * (-(t * 1000.0) / 14.0).exp()
+                    * (2.0 * core::f32::consts::PI * 2400.0 * t).sin()
+            })
+            .collect();
+
+        let burn_logits: Vec<f32> = model
+            .forward(windows_to_tensor(
+                &spec,
+                std::slice::from_ref(&window),
+                &device,
+            ))
+            .into_data()
+            .iter::<f32>()
+            .collect();
+        assert_eq!(burn_logits.len(), 2);
+
+        // fc_in must match the actual flattened length.
+        let t = 1024 - 2;
+        let t = t / 2;
+        let t = t - 2;
+        let flat_len = (t / 2) * 16;
+        assert_eq!(float.fc.in_units, flat_len);
+        assert_eq!(float.fc.in_units, fc_in_units(1024));
     }
 }

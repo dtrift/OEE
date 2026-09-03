@@ -13,7 +13,8 @@ use rand::seq::SliceRandom;
 use rand::SeedableRng;
 
 use crate::data::Window;
-use crate::model::{windows_to_tensor, ModelA};
+use crate::model::{windows_to_tensor, ModelCnn};
+use crate::TaskSpec;
 
 /// Trains and returns the fitted model.
 ///
@@ -22,17 +23,18 @@ use crate::model::{windows_to_tensor, ModelA};
 #[allow(clippy::too_many_arguments)]
 pub fn train<B: AutodiffBackend>(
     device: &B::Device,
+    spec: &TaskSpec,
     train: &[Window],
     epochs: usize,
     batch_size: usize,
     lr: f64,
-    class_weights: [f32; crate::NUM_CLASSES],
-) -> ModelA<B> {
+    class_weights: Vec<f32>,
+) -> ModelCnn<B> {
     B::seed(device, crate::SEED);
-    let mut model = ModelA::<B>::init(device);
+    let mut model = ModelCnn::<B>::init(device, spec);
     let mut optimizer = AdamConfig::new().with_beta_1(0.9).with_beta_2(0.999).init();
     let loss_fn: CrossEntropyLoss<B> = CrossEntropyLossConfig::new()
-        .with_weights(Some(class_weights.to_vec()))
+        .with_weights(Some(class_weights))
         .init(device);
 
     let mut labels: Vec<usize> = train.iter().map(|w| w.label).collect();
@@ -45,7 +47,7 @@ pub fn train<B: AutodiffBackend>(
         let mut batches = 0usize;
         for chunk in order.chunks(batch_size) {
             let rows: Vec<Vec<f32>> = chunk.iter().map(|&i| train[i].values.clone()).collect();
-            let x = windows_to_tensor::<B>(&rows, device);
+            let x = windows_to_tensor::<B>(spec, &rows, device);
             let y = Tensor::<B, 1, Int>::from_data(
                 burn::tensor::TensorData::new(
                     chunk.iter().map(|&i| labels[i] as i64).collect::<Vec<_>>(),
