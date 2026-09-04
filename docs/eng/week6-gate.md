@@ -77,8 +77,12 @@ model Q 119.0/120.5 µs.
 - **D5** — the report ([eng](report.md) / [rus](../rus/report.md)) with the
   four conclusions and their tables.
 - **D6** — the demo scenario ([eng](demo.md) / [rus](../rus/demo.md));
-  the one-command launch is week-5's `scripts/bench.sh` (unchanged —
-  feature freeze).
+  the one-command launch is week-5's `scripts/bench.sh` with one bugfix:
+  the dashboard now starts BEFORE the node replay (in the foreground, the
+  nodes in the background) — the bench broker is QoS 0 without retention,
+  so the old after-the-replay ordering left the dashboard empty
+  ("waiting for data" — the flaw my first verification round missed; found
+  on the user's run).
 - **D7** — this gate; the reproducibility section of the report is the
   clean-clone trail (build → test → parity → footprint → bench).
 

@@ -87,12 +87,15 @@ scripts/bench.sh [scenario] [seed] [port]     # default: scenarios/week5/normal.
 
 The script starts the bench MQTT broker (`mqtt-min --bin broker` — no
 mosquitto needed; a real one works too), generates the simulator streams
-(current CSV + taps dataset + IR-barrier events), replays them through the
-three nodes (`oee/line1/{a/status, p/count, q/verdict}`), aggregates
-`OEE = A × P × Q` into `oee/line1/oee` + `tmp/bench/oee_windows.csv`, and
-opens the ratatui dashboard (`q` quits). The aggregator subscribes before
-the nodes publish — QoS 0 does not replay the past — and exits after every
-node has published its `oee/line1/{node}/end` stream marker.
+(current CSV + taps dataset + IR-barrier events), and then replays them
+through the three nodes (`oee/line1/{a/status, p/count, q/verdict}`) in the
+background while the ratatui dashboard runs in the foreground — the gauges
+fill live during the replay and freeze on the final window; `oee/line1/oee`
++ `tmp/bench/oee_windows.csv` carry the aggregated `OEE = A × P × Q`. The
+aggregator subscribes before the nodes publish — QoS 0 does not replay the
+past, and neither does the broker (no retention: that is why the dashboard
+starts before the replay, not after) — and exits after every node has
+published its `oee/line1/{node}/end` stream marker.
 
 ## QEMU (LM3S6965): the MCU without an MCU
 
