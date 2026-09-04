@@ -1,0 +1,10 @@
+[package]
+name = "firmware-tools"
+description = "Host-side bench tools: the capture->run converter and the UART->MQTT bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+mqtt-min = { path = "../../mqtt-min" }

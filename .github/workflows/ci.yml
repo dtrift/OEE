@@ -73,3 +73,62 @@ jobs:
         run: |
           cargo run --release --example sine
           cargo run --release --example dense_spike
+
+  # Hardware track (decompose S0): build-only under the Xtensa toolchain —
+  # firmwares have no host-run tests (a human verifies on hardware); the
+  # host-testable logic lives in the firmware libs and runs in the
+  # firmware-host job below.
+  firmware:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install espup and the Xtensa toolchain
+        run: |
+          cargo install espup
+          espup install
+          . ${HOME}/export-esp.sh
+
+      - name: Build firmware (xtensa-esp32s3-none-elf)
+        run: |
+          . ${HOME}/export-esp.sh
+          ${HOME}/.rustup/toolchains/esp/bin/cargo build \
+            -p firmware-a -p firmware-q -p firmware-p \
+            --target xtensa-esp32s3-none-elf
+
+  # The host-testable half of the firmware workspace: pure node logic
+  # (window/hysteresis/debounce, line formats, the model parity fixtures)
+  # and the bench tools (capture converter, UART bridge).
+  firmware-host:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.96.1
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: firmware
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings -A mismatched_lifetime_syntaxes
+
+      - name: Tests
+        run: cargo test --workspace

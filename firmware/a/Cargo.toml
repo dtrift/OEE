@@ -7,7 +7,14 @@ license.workspace = true
 publish = false
 
 [dependencies]
-# Uncomment for the first on-board build (see ../README.md):
-# board = { path = "../board" }
-# features-cli = { path = "../../features-cli" }
-# esp-hal = { version = "1.1.2", features = ["esp32s3"] }
+board = { workspace = true }
+features-cli = { workspace = true }
+microflow = { workspace = true }
+nalgebra = { workspace = true }
+
+# The on-target half: esp-hal exists only under the Xtensa toolchain. The
+# lib (pure logic + host tests) builds without it — the skeleton property
+# from ../README.md is preserved. `unstable` is required in esp-hal 1.x:
+# the driver modules (uart/adc/gpio/delay) are public only under it.
+[target.'cfg(target_arch = "xtensa")'.dependencies]
+esp-hal = { version = "1.2", features = ["esp32s3", "unstable"] }
