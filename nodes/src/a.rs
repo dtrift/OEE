@@ -40,16 +40,29 @@ pub fn describe() -> &'static str {
     "node A: current -> features -> conv1d -> state"
 }
 
-/// Classifies a raw current window (amperes) into a machine-state index
-/// (0=idle, 1=run, 2=jam, 3=overload — `MachineState::class_index`).
-pub fn classify(window: &SMatrix<f32, WINDOW, 1>) -> usize {
+/// Classifies a raw current window (amperes): (probabilities, machine-state
+/// index). The probability vector is the softmax output of model A — the
+/// week-6 QEMU parity check compares it bit-for-bit against the firmware
+/// (`nodes/examples/qemu_host_ref.rs`).
+pub fn classify_with_probs(window: &SMatrix<f32, WINDOW, 1>) -> ([f32; 4], usize) {
     let output = CurrentModel::predict(*window);
-    output
+    let mut probs = [0.0f32; 4];
+    for (slot, value) in probs.iter_mut().zip(output.iter()) {
+        *slot = *value;
+    }
+    let argmax = probs
         .iter()
         .enumerate()
         .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
         .map(|(index, _)| index)
-        .unwrap_or(usize::MAX)
+        .unwrap_or(usize::MAX);
+    (probs, argmax)
+}
+
+/// Classifies a raw current window (amperes) into a machine-state index
+/// (0=idle, 1=run, 2=jam, 3=overload — `MachineState::class_index`).
+pub fn classify(window: &SMatrix<f32, WINDOW, 1>) -> usize {
+    classify_with_probs(window).1
 }
 
 /// The offline node A run summary (gate D1/D5 numbers).

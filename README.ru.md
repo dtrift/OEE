@@ -41,20 +41,21 @@ graph LR
 
 ## Структура
 
-| Путь              | Назначение                                                                                         |
-| ----------------- | -------------------------------------------------------------------------------------------------- |
-| `line-simulator/` | FSM станка + синтез сигнала тока + каналы ленты и тапов + CSV (датасет и ground truth)              |
-| `nodes/`          | Узлы A (ток) / P (счёт) / Q (акустика): источник → модель/детектор фронта → MQTT                    |
-| `oee-aggregator/` | A × P × Q по окнам машинного времени → `oee/line1/oee` + windows-CSV (неделя 5)                      |
-| `oee-dashboard/`  | TUI-дашборд ratatui: live OEE/A/P/Q, счётчик, вердикты (неделя 5)                                    |
-| `features-cli/`   | Общий Rust-код фич + контракты железа (окно, калибровка, capture)                                    |
-| `mqtt-min/`       | Минимальный собственный MQTT 3.1.1-клиент + loopback/стенд-брокер (публикация и подписка, QoS 0)     |
-| `fork/microflow`  | Форк движка microflow-rs (Conv1D) — свой workspace                                                   |
-| `ml/`             | ML-конвейер: Rust-трек (`exporter` + `trainer`) + legacy-скрипты Python                              |
-| `scenarios/`      | Декларативные TOML-сценарии прогонов (ground truth), вкл. `week5/` — набор эксперимента             |
-| `scripts/`        | Запуск стенда одной командой (`bench.sh`)                                                            |
-| `spike/`          | Спайк-доки недели 1 (сериализация Conv1D)                                                           |
-| `firmware/`       | Скелет прошивок ESP32-S3 — колея железа (свой workspace)                                            |
+| Путь              | Назначение                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `line-simulator/` | FSM станка + синтез сигнала тока + каналы ленты и тапов + CSV (датасет и ground truth)                 |
+| `nodes/`          | Узлы A (ток) / P (счёт) / Q (акустика): источник → модель/детектор фронта → MQTT                       |
+| `oee-aggregator/` | A × P × Q по окнам машинного времени → `oee/line1/oee` + windows-CSV (неделя 5)                        |
+| `oee-dashboard/`  | TUI-дашборд ratatui: live OEE/A/P/Q, счётчик, вердикты (неделя 5)                                      |
+| `features-cli/`   | Общий Rust-код фич + контракты железа (окно, калибровка, capture)                                      |
+| `mqtt-min/`       | Минимальный собственный MQTT 3.1.1-клиент + loopback/стенд-брокер (публикация и подписка, QoS 0)       |
+| `fork/microflow`  | Форк движка microflow-rs (Conv1D) — свой workspace                                                     |
+| `qemu/`           | Прошивка под LM3S6965 (узел A в QEMU) — неделя 6, свой пакет                                           |
+| `ml/`             | ML-конвейер: Rust-трек (`exporter` + `trainer`) + legacy-скрипты Python                                |
+| `scenarios/`      | Декларативные TOML-сценарии прогонов (ground truth), вкл. `week5/` — набор эксперимента                |
+| `scripts/`        | Запуски одной командой: `bench.sh`, `qemu.sh`, `qemu-parity.sh`, `footprint.sh`, `gen-qemu-windows.py` |
+| `spike/`          | Спайк-доки недели 1 (сериализация Conv1D)                                                              |
+| `firmware/`       | Скелет прошивок ESP32-S3 — колея железа (свой workspace)                                               |
 
 ## Сборка и тесты
 
@@ -88,6 +89,27 @@ scripts/bench.sh [сценарий] [seed] [порт]     # дефолт: scenar
 (`q` — выход). Агрегатор подписывается до публикации узлов — QoS 0 не
 воспроизводит прошлое — и завершается, когда каждый узел опубликует маркер
 конца потока `oee/line1/{node}/end`.
+
+## QEMU (LM3S6965): MCU без MCU
+
+Неделя 6: модель узла A, скомпилированная в `no_std`-прошивку под
+эмулируемую отладочную плату LM3S6965 (Cortex-M3) — портабельность и
+footprint, гейт — паритет хост/QEMU. Первичная настройка: `rustup target
+add thumbv7m-none-eabi`, `cargo install flip-link` и либо нативный
+`qemu-system-arm`, либо docker-запас (`docker build -t oee-qemu qemu/`;
+`scripts/qemu.sh` сам выбирает нативный, если он есть). Дальше:
+
+```bash
+scripts/qemu-parity.sh     # прошивка против хоста: PARITY OK, бит-в-бит
+scripts/footprint.sh       # flash/RAM: conv1d против трюка conv2d против dense
+(cd qemu && cargo run --release --bin oee-qemu)   # само демо через UART
+```
+
+Крейт прошивки — [`qemu/`](qemu/README.ru.md) (не член воркспейса);
+бенчмарки движка живут в форке (`cargo bench --bench conv1d`, см.
+`fork/NOTES.md`, неделя 6). Подробности и числа —
+[`docs/rus/report.md`](docs/rus/report.md) и
+[`docs/rus/week6-gate.md`](docs/rus/week6-gate.md).
 
 ## Симулятор
 
@@ -176,27 +198,32 @@ Conv1D — контракт недель 2–3).
 
 ## Статус
 
-Готово: недели 1–5 (кернел Conv1D, парсер макроса + кодеген, ML-конвейер,
-узлы A и Q end-to-end с публикацией MQTT, узел P с каналом ленты,
-OEE-агрегатор на окнах машинного времени, ratatui-дашборд и эксперимент
-«измеренное против истинного» — таблица ниже) и стретч-трек
-rust-ml — чеклисты и артефакты в гейт-доках:
+Готово: недели 1–6 — кернел Conv1D (в неделю 6 оптимизирован: вынос
+zero-point, бит-точный, 1.67–1.73× против трюка reshape на моделях узлов),
+парсер макроса + кодеген, ML-конвейер, узлы A и Q end-to-end с публикацией
+MQTT, узел P с каналом ленты, OEE-агрегатор на окнах машинного времени,
+ratatui-дашборд, эксперимент «измеренное против истинного» (таблица ниже),
+стретч-трек rust-ml, прошивка под QEMU LM3S6965 с паритетом и таблицей
+footprint и отчёт — чеклисты и артефакты в гейт-доках:
 [`week1-gate.md`](./docs/rus/week1-gate.md),
 [`week2-gate.md`](./docs/rus/week2-gate.md),
 [`week3-gate.md`](./docs/rus/week3-gate.md),
 [`rust-ml-gate.md`](./docs/rus/rust-ml-gate.md),
 [`week4-gate.md`](./docs/rus/week4-gate.md),
-[`week5-gate.md`](./docs/rus/week5-gate.md).
+[`week5-gate.md`](./docs/rus/week5-gate.md),
+[`week6-gate.md`](./docs/rus/week6-gate.md); отчёт —
+[`docs/rus/report.md`](./docs/rus/report.md), сценарий демо —
+[`docs/rus/demo.md`](./docs/rus/demo.md).
 
 Главный результат недели 5 — измеренное против истинного OEE (полный
 эксперимент: `cargo test -p oee-aggregator --test experiment -- --nocapture`):
 
-| сценарий  | сид | true OEE | measured | err    |
-| --------- | --- | -------- | -------- | ------ |
-| normal    | 42  | 0,841    | 0,841    | +0,000 |
-| downtime  | 42  | 0,516    | 0,516    | +0,000 |
-| slowdown  | 42  | 0,612    | 0,612    | +0,000 |
-| rejects   | 42  | 0,478    | 0,478    | +0,000 |
+| сценарий | сид | true OEE | measured | err    |
+| -------- | --- | -------- | -------- | ------ |
+| normal   | 42  | 0,841    | 0,841    | +0,000 |
+| downtime | 42  | 0,516    | 0,516    | +0,000 |
+| slowdown | 42  | 0,612    | 0,612    | +0,000 |
+| rejects  | 42  | 0,478    | 0,478    | +0,000 |
 
 Ноль — работа конструкции: счёт ленты точен по построению, сдвиги границ A
 взаимно компенсируются, модели в распределении. Сдвиг распределения и предел

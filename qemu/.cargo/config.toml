@@ -1,0 +1,13 @@
+# LM3S6965 (Cortex-M3), like the fork's examples/qemu — the config is its
+# direct copy with one change: the runner goes through scripts/qemu.sh so a
+# dockerized qemu-system-arm works the same as a native one.
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = "./run-qemu.sh -cpu cortex-m3 -machine lm3s6965evb -nographic -semihosting-config enable=on,target=native -kernel"
+rustflags = [
+    "-C", "linker=flip-link",
+    "-C", "link-arg=-Tlink.x",
+    "-C", "link-arg=--nmagic",
+]
+
+[build]
+target = "thumbv7m-none-eabi"

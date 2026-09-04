@@ -1,0 +1,41 @@
+[package]
+name = "oee-qemu"
+version = "0.1.0"
+edition = "2021"
+description = "OEE node A on the LM3S6965 eval board (QEMU): model A inference over UART"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+cortex-m-semihosting = "0.5"
+panic-halt = "0.2"
+microflow = { path = "../fork/microflow" }
+nalgebra = { version = "0.32", default-features = false, features = ["macros"] }
+
+# The fork's nalgebra patch (see the OEE root Cargo.toml and fork/NOTES.md):
+# this package is excluded from the OEE workspace, so the patch must be
+# repeated here — otherwise nalgebra silently comes from crates.io.
+[patch.crates-io]
+nalgebra = { git = "https://github.com/matteocarnelos/nalgebra" }
+
+[features]
+# Gates the `conv2d` bin (the reshape-trick footprint variant). The bin only
+# makes sense when built with MICROFLOW_CONV2D_ONLY=1 and its own target dir
+# (see scripts/footprint.sh) — the feature keeps it out of normal builds.
+footprint-conv2d = []
+
+[[bin]]
+name = "oee-qemu"
+path = "src/main.rs"
+
+[[bin]]
+name = "conv2d"
+path = "src/bin/conv2d.rs"
+required-features = ["footprint-conv2d"]
+
+[[bin]]
+name = "dense"
+path = "src/bin/dense.rs"
+
+[profile.release]
+lto = true

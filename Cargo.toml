@@ -13,7 +13,9 @@ members = [
 # fork/microflow is a separate workspace (its own [workspace] and [patch]);
 # it is wired in as a path dependency and is not a member here — `exclude`
 # keeps cargo from seeing two workspace roots in one tree.
-exclude = ["fork"]
+# qemu is excluded for the same reason: it is a no_std thumbv7m package
+# (LM3S6965 firmware) that must not enter host workspace builds.
+exclude = ["fork", "qemu"]
 
 [workspace.package]
 edition = "2021"
