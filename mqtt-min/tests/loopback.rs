@@ -112,28 +112,65 @@ fn two_subscribers_both_receive_a_publish() {
 }
 
 #[test]
-fn subscribe_early_publishes_are_buffered_not_lost() {
-    // A broker may dispatch a PUBLISH while the client still waits for its
-    // SUBACK; the client must buffer it (subscribe returns after the SUBACK,
-    // the message is served by the next read). The loopback broker orders
-    // SUBACK first, so this pins the client's buffering path directly: the
-    // publisher's message arrives while `subscribe` is between send and ack.
+fn pre_subscription_publishes_are_not_delivered() {
+    // QoS 0 + clean session: a message published before the subscription
+    // existed is NOT delivered. The capture channel is the processing
+    // barrier (the broker captures after the dispatch pass): once the early
+    // publish is captured, it is gone for good, and any subscribe that
+    // happens after cannot retroactively deliver it. Without this sync the
+    // test would race two independent TCP connections against the broker's
+    // scheduler — exactly the flake the CI caught.
     let broker = LoopbackBroker::spawn();
     let mut client = mqtt_min::Client::connect(&broker.addr, "late-sub", 60).expect("connect");
     let mut publisher = mqtt_min::Client::connect(&broker.addr, "node-a", 60).expect("connect");
-    // Publishing before subscribe: with clean sessions and no retention the
-    // message is NOT delivered — that is the documented QoS-0 contract.
     publisher.publish("oee/line1/a/status", "{}").unwrap();
+    let early = broker
+        .publishes
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the early publish is captured (dispatch already done)");
+    assert_eq!(early.topic, "oee/line1/a/status");
     client.subscribe("oee/line1/#").expect("subscribe");
     assert!(
         client
             .next_message(Duration::from_millis(300))
             .expect("idle read")
             .is_none(),
-        "a message published before SUBACK must not be delivered"
+        "a message published before the subscription must not be delivered"
     );
     // After the SUBACK everything flows.
     publisher.publish("oee/line1/a/status", "{}").unwrap();
     let message = next_soon(&mut client);
     assert_eq!(message.topic, "oee/line1/a/status");
+}
+
+#[test]
+fn subscribe_buffers_publishes_that_beat_the_suback() {
+    // The client-side half of the race: a broker may dispatch a matching
+    // PUBLISH while the SUBACK is still in flight (our broker reaches this
+    // wire order when a publisher races a fresh subscriber — registration
+    // precedes the SUBACK). The client must buffer such a message while
+    // waiting for the ack and serve it from the next read, not lose it and
+    // not mistake it for a protocol error.
+    use std::io::Write as _;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap().to_string();
+    let peer = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("peer accept");
+        // CONNACK, then a PUBLISH that beats the SUBACK, then the SUBACK
+        // itself (packet id 1, one filter granted QoS 0).
+        stream.write_all(&[0x20, 0x02, 0x00, 0x00]).unwrap();
+        stream
+            .write_all(&mqtt_min::encode_publish("oee/line1/oee", r#"{"oee":0.5}"#))
+            .unwrap();
+        stream.write_all(&[0x90, 0x03, 0x00, 0x01, 0x00]).unwrap();
+        stream.flush().unwrap();
+        // Hold the connection open until the client is done reading.
+        std::thread::sleep(Duration::from_millis(300));
+    });
+    let mut client = mqtt_min::Client::connect(&addr, "race-sub", 60).expect("connect");
+    client.subscribe("oee/line1/#").expect("subscribe");
+    let message = next_soon(&mut client);
+    assert_eq!(message.topic, "oee/line1/oee");
+    assert_eq!(message.payload, r#"{"oee":0.5}"#);
+    peer.join().expect("peer done");
 }

@@ -137,9 +137,13 @@ fn serve_reads(
                 let _ = outbox.send(vec![0x20, 0x02, 0x00, 0x00]);
             }
             0x82 => {
-                // SUBSCRIBE -> SUBACK(0x00 per filter), then register the
-                // filters. The SUBACK is queued before registration, so no
-                // dispatch can overtake it in the outbox.
+                // SUBSCRIBE: register the filters first, SUBACK second. The
+                // spec reading: a SUBACK promises the subscription is live,
+                // so a publish racing in after the ack must be delivered.
+                // The price is that a dispatch (another thread) may enqueue a
+                // matching PUBLISH into this connection's outbox *before* the
+                // SUBACK — the client buffers such messages while waiting
+                // for the ack (see `Client::subscribe`), so nothing is lost.
                 let Some(packet_id) = packet_id(&body) else {
                     continue;
                 };
@@ -147,19 +151,23 @@ fn serve_reads(
                 let mut suback = vec![0x90, (2 + filters.len()) as u8];
                 suback.extend_from_slice(&packet_id.to_be_bytes());
                 suback.extend(std::iter::repeat_n(0x00, filters.len()));
-                let _ = outbox.send(suback);
                 if let Ok(mut guard) = shared.lock() {
-                    for filter in filters {
+                    for filter in &filters {
                         guard.subscriptions.push(Subscription {
                             conn_id,
-                            filter,
+                            filter: filter.clone(),
                             outbox: outbox.clone(),
                         });
                     }
                 }
+                let _ = outbox.send(suback);
             }
             0x30 => {
-                // PUBLISH QoS 0: capture + dispatch to matching subscribers.
+                // PUBLISH QoS 0: dispatch to matching subscribers, then
+                // capture. The capture order is the processing barrier for
+                // tests: receiving a capture implies the dispatch pass has
+                // already run, so subscription changes after that moment
+                // cannot retroactively deliver that message.
                 if body.len() < 2 {
                     continue;
                 }
@@ -169,10 +177,6 @@ fn serve_reads(
                 }
                 let topic = String::from_utf8_lossy(&body[2..2 + topic_len]).into_owned();
                 let payload = String::from_utf8_lossy(&body[2 + topic_len..]).into_owned();
-                let _ = capture.send(CapturedPublish {
-                    topic: topic.clone(),
-                    payload: payload.clone(),
-                });
                 if let Ok(guard) = shared.lock() {
                     for sub in &guard.subscriptions {
                         if topic_matches(&sub.filter, &topic) {
@@ -182,6 +186,7 @@ fn serve_reads(
                         }
                     }
                 }
+                let _ = capture.send(CapturedPublish { topic, payload });
             }
             0xC0 => {
                 // PINGREQ -> PINGRESP.
