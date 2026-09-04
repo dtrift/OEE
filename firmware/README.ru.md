@@ -58,13 +58,45 @@ cd firmware
     --target xtensa-esp32s3-none-elf
 ```
 
-Прошивка и монитор (на каждую плату):
+Прошивка и монитор — см. следующий раздел.
+
+## Прошивка плат
+
+Один ELF на плату (espflash сам превращает его в загрузочный образ —
+отдельный .bin готовить не нужно). Берите **release**-сборки; бинарник
+должен соответствовать обвязке платы (`board` — единый источник правды):
+
+| Плата                                  | Узел | Файл (`firmware/target/xtensa-esp32s3-none-elf/release/`) |
+| -------------------------------------- | ---- | ---------------------------------------------------------- |
+| DevKitC-1 №1 (ACS712 на GPIO4)         | A    | `firmware-a`                                               |
+| DevKitC-1 №2 (серво GPIO11 + INMP441)  | Q    | `firmware-q`                                               |
+| CAM-плата (TCRT5000 на GPIO5)          | P    | `firmware-p`                                               |
+
+Платы различаются по USB-последовательному порту — смотрите `/dev/ttyUSB*`:
 
 ```bash
-cargo install espflash
-espflash flash target/xtensa-esp32s3-none-elf/debug/firmware-a
-espflash monitor
+espflash flash --port /dev/ttyUSB0 target/xtensa-esp32s3-none-elf/release/firmware-a
+espflash flash --port /dev/ttyUSB1 target/xtensa-esp32s3-none-elf/release/firmware-q
+espflash flash --port /dev/ttyUSB2 target/xtensa-esp32s3-none-elf/release/firmware-p
 ```
+
+`--monitor` сразу после прошивки покажет консоль. Если плата не видится —
+зажмите **BOOT** при подключении (режим прошивки по USB).
+
+Что печатает живой образ в UART (115200) — первая проверка шейкдауна:
+
+- A: `a: boot, run_id=bench-a` → `a: zero=NNN` (стартовая калибровка
+  нуля) → строки `a,bench-a,<t_ms>,<state>` при подтверждённых сменах;
+- Q: `q: boot, run_id=bench-q` → `q,bench-q,<t_ms>,<verdict>` каждые
+  ~400 мс (окно синтетическое до шага S4 с I2S);
+- P: `p: boot, run_id=bench-p` → `p,bench-p,<t_ms>,<count>` на деталь.
+
+Прошивать НЕ надо:
+
+- `qemu/target/.../oee-qemu` — артефакт недели 6 под LM3S6965/Cortex-M3,
+  другой тулчейн и другая цель; на ESP32-S3 он не стартует;
+- debug-сборки работают, но в 10 раз больше без пользы для шейкдауна
+  (паники печатают строку в UART и в release).
 
 ## Контракты в игре
 

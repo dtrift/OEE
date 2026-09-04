@@ -57,13 +57,46 @@ cd firmware
     --target xtensa-esp32s3-none-elf
 ```
 
-Flash and monitor (per board):
+Flash and monitor — see the next section.
+
+## Flashing the boards
+
+One ELF per board (espflash converts it into a bootable image itself — no
+separate .bin to prepare). Use the **release** builds; match the binary to
+the board's wiring (`board` is the single source of truth):
+
+| Board                                 | Node | File (`firmware/target/xtensa-esp32s3-none-elf/release/`) |
+| ------------------------------------- | ---- | --------------------------------------------------------- |
+| DevKitC-1 #1 (ACS712 on GPIO4)        | A    | `firmware-a`                                              |
+| DevKitC-1 #2 (servo GPIO11 + INMP441) | Q    | `firmware-q`                                              |
+| CAM board (TCRT5000 on GPIO5)         | P    | `firmware-p`                                              |
+
+The boards differ by their USB serial port — check `/dev/ttyUSB*`:
 
 ```bash
-cargo install espflash
-espflash flash target/xtensa-esp32s3-none-elf/debug/firmware-a
-espflash monitor
+espflash flash --port /dev/ttyUSB0 target/xtensa-esp32s3-none-elf/release/firmware-a
+espflash flash --port /dev/ttyUSB1 target/xtensa-esp32s3-none-elf/release/firmware-q
+espflash flash --port /dev/ttyUSB2 target/xtensa-esp32s3-none-elf/release/firmware-p
 ```
+
+`--monitor` right after flashing shows the console immediately. If a
+board is not seen, hold **BOOT** while plugging it in (the USB download
+mode).
+
+What a live image prints over UART (115200) — the first bring-up check:
+
+- A: `a: boot, run_id=bench-a` → `a: zero=NNN` (the startup zero
+  calibration) → `a,bench-a,<t_ms>,<state>` lines on confirmed changes;
+- Q: `q: boot, run_id=bench-q` → `q,bench-q,<t_ms>,<verdict>` every
+  ~400 ms (a synthetic window until the S4 I2S step);
+- P: `p: boot, run_id=bench-p` → `p,bench-p,<t_ms>,<count>` per part.
+
+Do NOT flash:
+
+- `qemu/target/.../oee-qemu` — the week-6 LM3S6965/Cortex-M3 artifact,
+  a different toolchain and target; it will not boot on an ESP32-S3;
+- the debug builds work but are 10× larger for no bring-up benefit
+  (panics print their UART line in release too).
 
 ## The contracts in play
 
