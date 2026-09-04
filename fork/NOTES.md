@@ -268,3 +268,43 @@ Export seams (burn 0.21 → TFLite, pinned by trainer tests):
   std-only, QoS 0) because the offline sandbox has neither the crate nor a
   broker; see `docs/eng/week4-gate.md`, Deviations. The aggregator (week 5)
   will add SUBSCRIBE to the same crate.
+
+## Week 5 — the fork untouched (aggregator/dashboard week)
+
+- No fork changes; `../docs/eng/week5-gate.md` is the record. Listed here
+  only to keep the week numbering continuous.
+
+## Week 6 — benchmarks, the kernel optimization, the QEMU A/B escape hatch
+
+- **`MICROFLOW_CONV2D_ONLY=1`** (macro env knob, `microflow-macros/src/lib.rs`):
+  forces every 1-D convolution onto the generic `conv_2d` path — the
+  pre-Conv1D "reshape trick" — for same-model A/B builds (footprint and
+  benches). **Trap**: the variable is read at macro-expansion time and cargo
+  does NOT fingerprint proc-macro env reads — an A/B build needs its own
+  `CARGO_TARGET_DIR` (the week-6 twin of the week-3 toolchain trap; the
+  OEE `scripts/footprint.sh` and the trick bench run do exactly that).
+- **Zero-point hoisting in `conv_1d`** (bit-exact): the first bench run
+  showed the dedicated kernel LOSING to the trick path (+16% on layer 2,
+  +20% on whole models) — the per-element `(x - zx)(w - zw)` corrections
+  cost more than the simplified loop saved. The accumulator now expands
+  exactly (`sum x*w - zx*sum w - zw*sum x + M*zx*zw`, integer algebra,
+  prefix sums over the kernel axis for the Same-padding edges) so the MAC
+  loop is a bare multiply-accumulate with static `0..KERNEL` bounds in the
+  full-window branch (LLVM unrolls; the dynamic range stays for edge
+  windows). The 96 golden fixtures still pass **bit-for-bit** — the
+  transform moves no rounding. Host numbers (criterion medians):
+  layer1 4.04 vs 4.14 µs, layer2 4.89 vs 15.02 µs; model A 14.1 vs 23.5 µs,
+  model Q 108.0 vs 186.1 µs (conv_1d vs trick). Flash cost of the speed:
+  +2.8 KiB on the LM3S6965 firmware (45.3 vs 42.6 KiB) — the dual-branch
+  loops and prefix code.
+- **`benches/conv1d.rs`**: fair kernel A/B (same geometry, same weights,
+  identity quant scales so the requant arithmetic is symmetric) + the
+  `predict()` latency of the OEE models A/Q; `examples/latency.rs` adds
+  min/avg/max over 20k runs. The node models live in `models/` as
+  `model_a.tflite`/`model_q.tflite` (copies of the OEE `ml/models/`
+  artifacts — the fork's bench-input convention; refresh them together
+  with the OEE pipeline runs).
+- **The examples/qemu package** (semihosting output) builds and runs on
+  `thumbv7m-none-eabi` against stock crates.io nalgebra — the git patch is
+  NOT required for the examples path (only the workspace builds need it).
+  `flip-link` (the pinned linker there) is a cargo-installed tool.

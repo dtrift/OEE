@@ -42,20 +42,21 @@ graph LR
 
 ## Structure
 
-| Path              | Purpose                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| `line-simulator/` | Machine FSM + current-signal synthesis + the belt and tap channels + CSV (dataset and ground truth) |
-| `nodes/`          | Nodes A (current) / P (counting) / Q (acoustics): source → model/edge-detector → MQTT            |
-| `oee-aggregator/` | A × P × Q over event-time windows → `oee/line1/oee` + the windows CSV (week 5)                   |
-| `oee-dashboard/`  | ratatui TUI dashboard: live OEE/A/P/Q, counter, verdicts (week 5)                                |
-| `features-cli/`   | Shared Rust feature code + hardware contracts (window, calibration, capture)                     |
-| `mqtt-min/`       | A minimal own MQTT 3.1.1 client + a loopback/bench broker (publish + subscribe, QoS 0)           |
-| `fork/microflow`  | microflow-rs engine fork (Conv1D) — its own workspace                                            |
-| `ml/`             | ML pipeline: the Rust track (`exporter` + `trainer`) + legacy Python scripts                     |
-| `scenarios/`      | Declarative TOML run scenarios (ground truth), incl. `week5/` — the experiment set               |
-| `scripts/`        | One-command bench launch (`bench.sh`)                                                            |
-| `spike/`          | Week-1 spike docs (Conv1D serialization)                                                          |
-| `firmware/`       | ESP32-S3 firmware skeletons — hardware track (its own workspace)                                  |
+| Path              | Purpose                                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `line-simulator/` | Machine FSM + current-signal synthesis + the belt and tap channels + CSV (dataset and ground truth)  |
+| `nodes/`          | Nodes A (current) / P (counting) / Q (acoustics): source → model/edge-detector → MQTT                |
+| `oee-aggregator/` | A × P × Q over event-time windows → `oee/line1/oee` + the windows CSV (week 5)                       |
+| `oee-dashboard/`  | ratatui TUI dashboard: live OEE/A/P/Q, counter, verdicts (week 5)                                    |
+| `features-cli/`   | Shared Rust feature code + hardware contracts (window, calibration, capture)                         |
+| `mqtt-min/`       | A minimal own MQTT 3.1.1 client + a loopback/bench broker (publish + subscribe, QoS 0)               |
+| `fork/microflow`  | microflow-rs engine fork (Conv1D) — its own workspace                                                |
+| `qemu/`           | The LM3S6965 firmware (node A on QEMU) — week 6, its own package                                     |
+| `ml/`             | ML pipeline: the Rust track (`exporter` + `trainer`) + legacy Python scripts                         |
+| `scenarios/`      | Declarative TOML run scenarios (ground truth), incl. `week5/` — the experiment set                   |
+| `scripts/`        | One-command launches: `bench.sh`, `qemu.sh`, `qemu-parity.sh`, `footprint.sh`, `gen-qemu-windows.py` |
+| `spike/`          | Week-1 spike docs (Conv1D serialization)                                                             |
+| `firmware/`       | ESP32-S3 firmware skeletons — hardware track (its own workspace)                                     |
 
 Documentation: `docs/eng/` (English), `docs/rus/` (Russian originals).
 
@@ -86,12 +87,45 @@ scripts/bench.sh [scenario] [seed] [port]     # default: scenarios/week5/normal.
 
 The script starts the bench MQTT broker (`mqtt-min --bin broker` — no
 mosquitto needed; a real one works too), generates the simulator streams
-(current CSV + taps dataset + IR-barrier events), replays them through the
-three nodes (`oee/line1/{a/status, p/count, q/verdict}`), aggregates
-`OEE = A × P × Q` into `oee/line1/oee` + `tmp/bench/oee_windows.csv`, and
-opens the ratatui dashboard (`q` quits). The aggregator subscribes before
-the nodes publish — QoS 0 does not replay the past — and exits after every
-node has published its `oee/line1/{node}/end` stream marker.
+(current CSV + taps dataset + IR-barrier events), and then replays them
+through the three nodes (`oee/line1/{a/status, p/count, q/verdict}`) in the
+background while the ratatui dashboard runs in the foreground — the gauges
+fill live during the replay and freeze on the final window; `oee/line1/oee`
++ `tmp/bench/oee_windows.csv` carry the aggregated `OEE = A × P × Q`. The
+aggregator subscribes before the nodes publish — QoS 0 does not replay the
+past, and neither does the broker (no retention: that is why the dashboard
+starts before the replay, not after) — and exits after every node has
+publishes its `oee/line1/{node}/end` stream marker. Artifacts land in
+`tmp/bench/` (a custom port gets `tmp/bench-<port>` — concurrent runs do
+not share them); `RELEASE=1` switches the whole bench to release builds
+for big scenarios.
+
+![OEE bench dashboard](docs/media/OEE-demo.png)
+
+*The dashboard at the end of the bench run (the `normal` scenario, seed 42:
+OEE 84.1%).*
+
+## Simulator
+## QEMU (LM3S6965): the MCU without an MCU
+
+Week 6: node A's model compiled into a `no_std` Cortex-M3 firmware for the
+emulated LM3S6965 eval board — portability and footprint, with
+host/QEMU parity as the gate. One-time setup: `rustup target add
+thumbv7m-none-eabi`, `cargo install flip-link`, and either a native
+`qemu-system-arm` or the docker fallback (`docker build -t oee-qemu qemu/`;
+`scripts/qemu.sh` picks the native binary when present). Then:
+
+```bash
+scripts/qemu-parity.sh     # firmware vs host: PARITY OK, bit-for-bit
+scripts/footprint.sh       # flash/RAM: conv1d vs the conv2d trick vs dense
+(cd qemu && cargo run --release --bin oee-qemu)   # the UART demo itself
+```
+
+The firmware crate is [`qemu/`](qemu/README.md) (not a workspace member);
+the engine benchmarks live in the fork
+(`cargo bench --bench conv1d`, see `fork/NOTES.md` week 6). Details and the
+numbers — [`docs/eng/report.md`](docs/eng/report.md) and
+[`docs/eng/week6-gate.md`](docs/eng/week6-gate.md).
 
 ## Simulator
 
@@ -115,7 +149,13 @@ section) — the model Q dataset; the `--belt-events` mode (+ `--belt-meta`)
 emits the IR-barrier level stream (`t_ms,ir`) plus the part truth
 (`t_ms,pulses`, the `[belt]` section) — node P's input. The three channels
 are independent seeded streams: requesting one changes neither of the
-others.
+others. `soak.toml` stretches the same densities to 3 h of simulated
+time — the message-load scenario (~100 000 messages on `oee/line1/#`),
+and `soak-1m.toml` reaches ~1 072 500 messages in 12 h with 150 ms
+belt/tap periods (run both as `RELEASE=1 scripts/bench.sh <scenario> 42`:
+the debug default crawls on the multi-GB CSVs — 184 s vs 6 s for node A;
+see [`docs/eng/soak.md`](docs/eng/soak.md) for both launch variants, the
+measured numbers, and the 30-hour carrier-precision wall).
 
 ## ML pipeline
 
@@ -185,27 +225,36 @@ camera (the purchase list —
 
 ## Status
 
-Done: weeks 1–5 (the Conv1D kernel, the macro parser + codegen, the ML
-pipeline, nodes A and Q end-to-end with MQTT publishing, node P with the
-belt channel, the OEE aggregator with event-time windows, the ratatui
-dashboard, and the measured-vs-truth experiment — the table below) and the
-rust-ml stretch track — the checklists and artifacts are in the gate docs:
+Done: weeks 1–6 — the Conv1D kernel (optimized in week 6: zero-point
+hoisting, bit-exact, 1.67–1.73× over the reshape trick on the node models),
+the macro parser + codegen, the ML pipeline, nodes A and Q end-to-end with
+MQTT publishing, node P with the belt channel, the OEE aggregator with
+event-time windows, the ratatui dashboard, the measured-vs-truth experiment
+(the table below), the rust-ml stretch track, the QEMU LM3S6965 firmware
+with host parity and the footprint table, and the report — the checklists
+and artifacts are in the gate docs:
 [`week1-gate.md`](./docs/eng/week1-gate.md),
 [`week2-gate.md`](./docs/eng/week2-gate.md),
 [`week3-gate.md`](./docs/eng/week3-gate.md),
 [`rust-ml-gate.md`](./docs/eng/rust-ml-gate.md),
 [`week4-gate.md`](./docs/eng/week4-gate.md),
-[`week5-gate.md`](./docs/eng/week5-gate.md).
+[`week5-gate.md`](./docs/eng/week5-gate.md),
+[`week6-gate.md`](./docs/eng/week6-gate.md); the report —
+[`docs/eng/report.md`](./docs/eng/report.md), the demo scenario —
+[`docs/eng/demo.md`](./docs/eng/demo.md) with its recording
+[`docs/media/OEE-demo.mp4`](./docs/media/OEE-demo.mp4), and a recorded run
+of the 1M bench — [`docs/media/OEE-bench-1m.mp4`](./docs/media/OEE-bench-1m.mp4)
+(the dashboard winding up to ~1.07M messages).
 
 The week-5 main result — measured vs true OEE (the full experiment:
 `cargo test -p oee-aggregator --test experiment -- --nocapture`):
 
-| scenario  | seed | true OEE | measured | err    |
-| --------- | ---- | -------- | -------- | ------ |
-| normal    | 42   | 0.841    | 0.841    | +0.000 |
-| downtime  | 42   | 0.516    | 0.516    | +0.000 |
-| slowdown  | 42   | 0.612    | 0.612    | +0.000 |
-| rejects   | 42   | 0.478    | 0.478    | +0.000 |
+| scenario | seed | true OEE | measured | err    |
+| -------- | ---- | -------- | -------- | ------ |
+| normal   | 42   | 0.841    | 0.841    | +0.000 |
+| downtime | 42   | 0.516    | 0.516    | +0.000 |
+| slowdown | 42   | 0.612    | 0.612    | +0.000 |
+| rejects  | 42   | 0.478    | 0.478    | +0.000 |
 
 The zero error is the construction working: the belt count is exact by
 (design, the A boundary lags cancel, and the models are in-distribution —
