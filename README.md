@@ -144,11 +144,12 @@ emits the IR-barrier level stream (`t_ms,ir`) plus the part truth
 (`t_ms,pulses`, the `[belt]` section) — node P's input. The three channels
 are independent seeded streams: requesting one changes neither of the
 others. `soak.toml` stretches the same densities to 3 h of simulated
-time — the message-load scenario (~100 000 messages on `oee/line1/#`;
-run it as `RELEASE=1 scripts/bench.sh scenarios/soak.toml 42` — the debug
-default crawls on the ~0.6 GB of CSVs, 184 s vs 6 s for node A; see
-[`docs/eng/soak.md`](docs/eng/soak.md) for both launch variants and the
-measured numbers).
+time — the message-load scenario (~100 000 messages on `oee/line1/#`),
+and `soak-1m.toml` reaches ~1 072 500 messages in 12 h with 150 ms
+belt/tap periods (run both as `RELEASE=1 scripts/bench.sh <scenario> 42`:
+the debug default crawls on the multi-GB CSVs — 184 s vs 6 s for node A;
+see [`docs/eng/soak.md`](docs/eng/soak.md) for both launch variants, the
+measured numbers, and the 30-hour carrier-precision wall).
 
 ## ML pipeline
 

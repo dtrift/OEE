@@ -1,0 +1,310 @@
+# The 1M-message scenario (week 6, user request): ~12 h of simulated time
+# with the belt and tap periods tightened to 150 ms — ~1 060 000 messages
+# on oee/line1/# (the measured soak rate of 99 787 per 3 h at 400 ms,
+# scaled by 400/150 and by the duration). Release binaries for the replay
+# (RELEASE=1 or the docs/eng|rus/soak.md launch-2 block).
+#
+# WHY NOT JUST 30 HOURS OF soak.toml: the simulator's carrier phase is
+# computed in f32 seconds (`sin(2*pi*f*t)`, line-simulator/src/signal.rs)
+# and loses precision with t — measured on a 30 h run, node A flapped
+# 600-4800 times per hour from hour ~14 on (vs 2-6/h in the clean zone)
+# and the measured Availability collapsed to 0.59 against a ~0.92 truth.
+# Twelve hours stays inside the clean window; the missing volume comes
+# from density instead. Artifacts ~2.2 GB (run.csv ~1.35 GB, taps.csv
+# ~0.99 GB) — check the disk first.
+#
+# NOTE on P: the bench aggregator's ideal cycle stays 400 ms
+# (scripts/bench.sh) while parts arrive every ~158 ms, so the measured
+# Performance clamps to 1.000 — for a meaningful P run the aggregator with
+# --ideal-cycle-ms 150. A and Q stay meaningful as-is.
+
+duration_ms = 43200000
+
+[[events]]
+t_ms = 2000
+state = "Run"
+
+# --- ten 1.2 h blocks: a jam, an overload, an idle window each ---
+
+# block 1 (0..4 320 000)
+
+[[events]]
+t_ms = 720000
+state = "Jam"
+
+[[events]]
+t_ms = 720030
+state = "Run"
+
+[[events]]
+t_ms = 2160000
+state = "Overload"
+
+[[events]]
+t_ms = 2160060
+state = "Run"
+
+[[events]]
+t_ms = 3600000
+state = "Idle"
+
+[[events]]
+t_ms = 3780000
+state = "Run"
+
+# block 2 (4 320 000..8 640 000)
+
+[[events]]
+t_ms = 5040000
+state = "Jam"
+
+[[events]]
+t_ms = 5040030
+state = "Run"
+
+[[events]]
+t_ms = 6480000
+state = "Overload"
+
+[[events]]
+t_ms = 6480060
+state = "Run"
+
+[[events]]
+t_ms = 7920000
+state = "Idle"
+
+[[events]]
+t_ms = 8100000
+state = "Run"
+
+# block 3 (8 640 000..12 960 000)
+
+[[events]]
+t_ms = 9360000
+state = "Jam"
+
+[[events]]
+t_ms = 9360030
+state = "Run"
+
+[[events]]
+t_ms = 10800000
+state = "Overload"
+
+[[events]]
+t_ms = 10800060
+state = "Run"
+
+[[events]]
+t_ms = 12240000
+state = "Idle"
+
+[[events]]
+t_ms = 12420000
+state = "Run"
+
+# block 4 (12 960 000..17 280 000)
+
+[[events]]
+t_ms = 13680000
+state = "Jam"
+
+[[events]]
+t_ms = 13680030
+state = "Run"
+
+[[events]]
+t_ms = 15120000
+state = "Overload"
+
+[[events]]
+t_ms = 15120060
+state = "Run"
+
+[[events]]
+t_ms = 16560000
+state = "Idle"
+
+[[events]]
+t_ms = 16740000
+state = "Run"
+
+# block 5 (17 280 000..21 600 000)
+
+[[events]]
+t_ms = 18000000
+state = "Jam"
+
+[[events]]
+t_ms = 18000030
+state = "Run"
+
+[[events]]
+t_ms = 19440000
+state = "Overload"
+
+[[events]]
+t_ms = 19440060
+state = "Run"
+
+[[events]]
+t_ms = 20880000
+state = "Idle"
+
+[[events]]
+t_ms = 21060000
+state = "Run"
+
+# block 6 (21 600 000..25 920 000)
+
+[[events]]
+t_ms = 22320000
+state = "Jam"
+
+[[events]]
+t_ms = 22320030
+state = "Run"
+
+[[events]]
+t_ms = 23760000
+state = "Overload"
+
+[[events]]
+t_ms = 23760060
+state = "Run"
+
+[[events]]
+t_ms = 25200000
+state = "Idle"
+
+[[events]]
+t_ms = 25380000
+state = "Run"
+
+# block 7 (25 920 000..30 240 000)
+
+[[events]]
+t_ms = 26640000
+state = "Jam"
+
+[[events]]
+t_ms = 26640030
+state = "Run"
+
+[[events]]
+t_ms = 28080000
+state = "Overload"
+
+[[events]]
+t_ms = 28080060
+state = "Run"
+
+[[events]]
+t_ms = 29520000
+state = "Idle"
+
+[[events]]
+t_ms = 29700000
+state = "Run"
+
+# block 8 (30 240 000..34 560 000)
+
+[[events]]
+t_ms = 30960000
+state = "Jam"
+
+[[events]]
+t_ms = 30960030
+state = "Run"
+
+[[events]]
+t_ms = 32400000
+state = "Overload"
+
+[[events]]
+t_ms = 32400060
+state = "Run"
+
+[[events]]
+t_ms = 33840000
+state = "Idle"
+
+[[events]]
+t_ms = 34020000
+state = "Run"
+
+# block 9 (34 560 000..38 880 000)
+
+[[events]]
+t_ms = 35280000
+state = "Jam"
+
+[[events]]
+t_ms = 35280030
+state = "Run"
+
+[[events]]
+t_ms = 36720000
+state = "Overload"
+
+[[events]]
+t_ms = 36720060
+state = "Run"
+
+[[events]]
+t_ms = 38160000
+state = "Idle"
+
+[[events]]
+t_ms = 38340000
+state = "Run"
+
+# block 10 (38 880 000..43 200 000)
+
+[[events]]
+t_ms = 39600000
+state = "Jam"
+
+[[events]]
+t_ms = 39600030
+state = "Run"
+
+[[events]]
+t_ms = 41040000
+state = "Overload"
+
+[[events]]
+t_ms = 41040060
+state = "Run"
+
+[[events]]
+t_ms = 42480000
+state = "Idle"
+
+[[events]]
+t_ms = 42660000
+state = "Run"
+
+[[events]]
+t_ms = 43000000
+state = "Idle"
+
+[envelope]
+idle = 0.4
+run = 2.0
+jam = 3.2
+overload = 4.5
+
+[noise]
+sigma_a = 0.12
+
+[taps]
+period_ms = 150
+crack_probability = 0.05
+
+[belt]
+period_ms = 150
+jitter = 0.15
+double_probability = 0.1
+skip_probability = 0.05

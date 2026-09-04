@@ -1,24 +1,48 @@
-# The soak scenario: ~100 000 messages through the bench
+# The soak scenarios: 100 k and 1 M messages through the bench
 
 > [`scenarios/soak.toml`](../../scenarios/soak.toml) — the message-load
 > scenario (week 6): the same densities as
 > [`scenarios/week5/normal.toml`](../../scenarios/week5/normal.toml),
-> stretched to 3 h of simulated time. A soak test of the bench broker and
-> the aggregator, not a demo scenario. All numbers below are from the
-> verified run (seed 42).
+> stretched to 3 h of simulated time (~100 000 messages).
+> [`scenarios/soak-1m.toml`](../../scenarios/soak-1m.toml) — ~12 h with
+> the belt/tap periods at 150 ms: ~1 072 500 messages (~2.2 GB of
+> artifacts: mind the disk). Soak tests of the bench broker and the
+> aggregator, not demo scenarios. All numbers below are from verified
+> runs (seed 42).
 
 ## What to expect (measured, seed 42)
 
-| Metric                                        | Value                                           |
-| --------------------------------------------- | ----------------------------------------------- |
-| messages on `oee/line1/#` (dashboard counter) | 99 787                                          |
-| node A / P / Q publishes                      | 9 / 24 241 / 25 465                             |
-| aggregator                                    | 49 712 received, 50 072 republished, 0 errors   |
-| minute windows                                | 180 (+ the shift scope; 361 CSV rows)           |
-| OEE over 3 h                                  | 0.853 (A 0.943, P 0.952, Q 0.950), 24 239 parts |
-| stream generation                             | 25 s                                            |
-| whole replay, release binaries                | 13 s                                            |
-| artifacts                                     | ~585 MB (`run.csv` ~337 MB, `taps.csv` ~248 MB) |
+| Metric                                        | soak.toml (3 h)                                 | soak-1m.toml (12 h, 150 ms)                       |
+| --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------- |
+| messages on `oee/line1/#` (dashboard counter) | 99 787                                          | 1 072 502                                         |
+| node A / P / Q publishes                      | 9 / 24 241 / 25 465                             | 24 / 260 876 / 274 634                            |
+| aggregator                                    | 49 712 received, 50 072 republished, 0 errors   | 535 534 received, 536 968 republished, 0 errors   |
+| minute windows                                | 180 (+ the shift scope; 361 CSV rows)           | 717 (+ the shift scope)                           |
+| node A status rows (flap check)               | 7                                               | 23                                                |
+| OEE                                           | 0.853 (A 0.943, P 0.952, Q 0.950), 24 239 parts | 0.906 (A 0.954, P 1.000*, Q 0.950), 260 875 parts |
+| stream generation                             | 25 s                                            | ~35 s                                             |
+| whole replay, release binaries                | 13 s                                            | ~1.5–2 min                                        |
+| artifacts                                     | ~585 MB (`run.csv` ~337 MB, `taps.csv` ~248 MB) | ~2.2 GB (`run.csv` ~1.35 GB, `taps.csv` ~0.99 GB) |
+
+\* P clamps to 1.000: the bench aggregator's ideal cycle stays 400 ms
+(`scripts/bench.sh`) while parts arrive every ~143 ms — for a meaningful
+P run the aggregator with `--ideal-cycle-ms 150`. A and Q stay meaningful
+as-is.
+
+## The 30-hour wall (why soak-1m is 12 h, not 30)
+
+The naive 1M scaling — 30 h at the default densities — was built and run
+first, and it broke honestly: the simulator's carrier phase is computed
+in f32 seconds (`sin(2π·f·t)`, `line-simulator/src/signal.rs`), and the
+phase error grows with t. Measured on the 30 h run: node A flapped
+2–6 times per hour through hour 13, then 600–4 800 times per hour from
+hour 14 on (36 523 status rows total; the measured Availability collapsed
+to 0.591 against a ~0.92 truth — the classifier was reading phase noise,
+not the envelope). Twelve hours stays inside the clean window; the missing
+message volume comes from density (belt/tap periods 400 → 150 ms). A
+proper fix — f64 phase accumulation — would change the generated signal
+bit-for-bit and invalidate the trained models and the week-5 record, so
+it is pinned as future work, not a week-6 change.
 
 The machine-state events are spread over the whole timeline on purpose:
 node A publishes only on confirmed status changes, so bunched events would
