@@ -235,7 +235,9 @@ and artifacts are in the gate docs:
 [`week5-gate.md`](./docs/eng/week5-gate.md),
 [`week6-gate.md`](./docs/eng/week6-gate.md); the report —
 [`docs/eng/report.md`](./docs/eng/report.md), the demo scenario —
-[`docs/eng/demo.md`](./docs/eng/demo.md).
+[`docs/eng/demo.md`](./docs/eng/demo.md), and a recorded run of the 1M
+bench — [`docs/media/OEE-bench-1m.mp4`](./docs/media/OEE-bench-1m.mp4)
+(the dashboard winding up to ~1.07M messages).
 
 The week-5 main result — measured vs true OEE (the full experiment:
 `cargo test -p oee-aggregator --test experiment -- --nocapture`):
