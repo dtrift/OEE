@@ -1,13 +1,15 @@
 #!/bin/sh
 # The whole OEE bench in one command (week 5, D6 — also the week-6 demo):
 #
-#     scripts/bench.sh [scenario] [seed] [port]
+#     scripts/bench.sh [scenario] [seed] [port]      # debug build (default)
+#     RELEASE=1 scripts/bench.sh scenarios/soak.toml # release: big scenarios
 #
 # Starts the bench broker, generates the simulator streams for the scenario
 # (default scenarios/week5/normal.toml, seed 42), and replays them through the
 # three nodes while the ratatui dashboard is open in the foreground — the
 # gauges update live during the replay and freeze on the final window.
-# Ctrl-C stops everything; the artifacts stay in tmp/bench/.
+# Ctrl-C stops everything; the artifacts stay in tmp/bench/ (a custom port
+# gets tmp/bench-<port>, so concurrent runs do not clobber each other).
 #
 # The broker is the mqtt-min bench broker (no mosquitto needed). A real
 # mosquitto works too: pass its port and start it yourself — every client
@@ -15,21 +17,39 @@
 
 set -eu
 
+# RELEASE=1 — build and run the release binaries. The debug default is the
+# right trade-off at the demo scale (60 s scenarios), but on soak-scale
+# CSVs (~0.6 GB) the debug replay crawls (node A alone: 184 s vs 6 s).
+PROFILE="debug"
+BUILD_FLAGS=""
+if [ "${RELEASE:-0}" = "1" ]; then
+    PROFILE="release"
+    BUILD_FLAGS="--release"
+fi
+BIN="./target/$PROFILE"
+
 SCENARIO="${1:-scenarios/week5/normal.toml}"
 SEED="${2:-42}"
 PORT="${3:-18835}"
 ADDR="127.0.0.1:$PORT"
+# Concurrent runs must not share artifacts: the output dir follows the
+# port (the default port keeps the documented tmp/bench path; a custom
+# port gets tmp/bench-<port> — two benches on one port still collide on
+# the broker bind, which fails the second run loudly and early).
 OUT="tmp/bench"
+if [ "$PORT" != "18835" ]; then
+    OUT="tmp/bench-$PORT"
+fi
 RUN_ID="bench-$(basename "$SCENARIO" .toml)-$SEED"
 
-echo "== building the bench (debug)"
-cargo build -q -p mqtt-min -p line-simulator -p nodes -p oee-aggregator -p oee-dashboard
+echo "== building the bench ($PROFILE)"
+cargo build -q $BUILD_FLAGS -p mqtt-min -p line-simulator -p nodes -p oee-aggregator -p oee-dashboard
 
 echo "== scenario $SCENARIO, seed $SEED, artifacts in $OUT"
 mkdir -p "$OUT"
 
 echo "== starting the bench broker on $ADDR"
-./target/debug/broker "$PORT" >"$OUT/broker.log" 2>&1 &
+"$BIN/broker" "$PORT" >"$OUT/broker.log" 2>&1 &
 BROKER=$!
 AGGREGATOR=""
 NODES=""
@@ -52,7 +72,7 @@ echo "== generating the simulator streams"
     --belt-events "$OUT/ir.csv" --belt-meta "$OUT/belt_meta.csv" 2>&1
 
 echo "== aggregator (subscribes first — QoS 0 does not replay the past)"
-./target/debug/aggregator --mqtt "$ADDR" --ideal-cycle-ms 400 \
+"$BIN/aggregator" --mqtt "$ADDR" --ideal-cycle-ms 400 \
     --out "$OUT/oee_windows.csv" >"$OUT/aggregator.log" 2>&1 &
 AGGREGATOR=$!
 sleep 0.5
@@ -68,13 +88,13 @@ run_nodes() {
     # the broker has no retention, so only a subscription standing BEFORE
     # the first publish sees the stream.
     sleep 1
-    ./target/debug/node --kind a --input "$OUT/run.csv" \
+    "$BIN/node" --kind a --input "$OUT/run.csv" \
         --offline "$OUT/statuses.csv" --mqtt "$ADDR" --run-id "$RUN_ID" \
         >"$OUT/a.log" 2>&1
-    ./target/debug/node --kind p --input "$OUT/ir.csv" \
+    "$BIN/node" --kind p --input "$OUT/ir.csv" \
         --offline "$OUT/counts.csv" --mqtt "$ADDR" --run-id "$RUN_ID" \
         >"$OUT/p.log" 2>&1
-    ./target/debug/node --kind q --input "$OUT/taps.csv" --meta "$OUT/taps_meta.csv" \
+    "$BIN/node" --kind q --input "$OUT/taps.csv" --meta "$OUT/taps_meta.csv" \
         --offline "$OUT/verdicts.csv" --mqtt "$ADDR" --run-id "$RUN_ID" \
         >"$OUT/q.log" 2>&1
 }
@@ -88,7 +108,7 @@ NODES=$!
 # stream (a few seconds), the gauges update live; after the end markers
 # the values freeze on the final window — the state the demo walks through.
 echo "== dashboard (live during the replay; q quits)"
-./target/debug/oee-dashboard --mqtt "$ADDR" || true
+"$BIN/oee-dashboard" --mqtt "$ADDR" || true
 
 echo "== waiting for the aggregator to flush on the end markers"
 wait "$AGGREGATOR"

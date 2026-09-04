@@ -25,10 +25,10 @@ node A publishes only on confirmed status changes, so bunched events would
 silence it for hours (P and Q keep streaming regardless — they dominate
 the count).
 
-## Launch 1: the one-command way (debug, slow replay)
+## Launch 1: the one-command way
 
 ```bash
-scripts/bench.sh scenarios/soak.toml 42
+RELEASE=1 scripts/bench.sh scenarios/soak.toml 42     # release: replay ~13 s
 ```
 
 The script generates the streams (~585 MB into `tmp/bench/`), starts the
@@ -37,8 +37,11 @@ the background. The message counter winds up to ~99 800, then "stream
 ended"; the gauges freeze on the 3-hour values (OEE 85.3%, A 94.3%,
 P 95.2%, Q 95.0%, parts 24 239). Exit with `q`.
 
-Caveat: `bench.sh` builds **debug** binaries (fast rebuilds at the demo
-scale) — the replay takes ~7–10 minutes at this CSV size.
+Without `RELEASE=1` the script builds **debug** binaries (the right
+trade-off at the 60 s demo scale) — and at this CSV size the nodes run
+sequentially, so expect ~3 min of node A silence before P's burst and
+then ~10–15 min of node Q: the dashboard is NOT hung, it is waiting
+between the rare debug publishes.
 
 ## Launch 2: the fast way (release, ~13 s replay)
 
@@ -61,10 +64,13 @@ sleep 0.5
 
 The one-second head start lets the dashboard subscribe before the first
 publish (the broker has no retention). After `q` on the dashboard, stop
-the background jobs:
+the background jobs — and check for orphaned brokers if you skip this
+step or close the terminal first (they hold their port but idle
+harmlessly otherwise):
 
 ```bash
-kill %1 %2
+kill %1 %2 2>/dev/null
+pgrep -af 'target/release/broker' || echo "no orphan brokers"
 ```
 
 For a fully clean run, regenerate the streams first (release simulator —
@@ -90,4 +96,5 @@ rm -rf tmp/soak tmp/bench
 Node A parses a 337 MB CSV of 135 000 windows: 184 s in a debug build
 against 6 s in release — the inference itself is negligible (135 000 ×
 ~15 µs ≈ 2 s). At the demo scale (60 s scenarios) the debug builds are the
-right trade-off; at the soak scale, use release.
+right trade-off; at the soak scale use `RELEASE=1` (launch 1) or the
+release block (launch 2).

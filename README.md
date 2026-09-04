@@ -95,7 +95,10 @@ fill live during the replay and freeze on the final window; `oee/line1/oee`
 aggregator subscribes before the nodes publish — QoS 0 does not replay the
 past, and neither does the broker (no retention: that is why the dashboard
 starts before the replay, not after) — and exits after every node has
-published its `oee/line1/{node}/end` stream marker.
+publishes its `oee/line1/{node}/end` stream marker. Artifacts land in
+`tmp/bench/` (a custom port gets `tmp/bench-<port>` — concurrent runs do
+not share them); `RELEASE=1` switches the whole bench to release builds
+for big scenarios.
 
 ## QEMU (LM3S6965): the MCU without an MCU
 
@@ -142,8 +145,8 @@ emits the IR-barrier level stream (`t_ms,ir`) plus the part truth
 are independent seeded streams: requesting one changes neither of the
 others. `soak.toml` stretches the same densities to 3 h of simulated
 time — the message-load scenario (~100 000 messages on `oee/line1/#`;
-replay it with the release binaries: the debug ones crawl on the ~0.6 GB
-of CSVs — 184 s vs 6 s for node A; see
+run it as `RELEASE=1 scripts/bench.sh scenarios/soak.toml 42` — the debug
+default crawls on the ~0.6 GB of CSVs, 184 s vs 6 s for node A; see
 [`docs/eng/soak.md`](docs/eng/soak.md) for both launch variants and the
 measured numbers).
 
