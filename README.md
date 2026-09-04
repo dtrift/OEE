@@ -100,6 +100,12 @@ publishes its `oee/line1/{node}/end` stream marker. Artifacts land in
 not share them); `RELEASE=1` switches the whole bench to release builds
 for big scenarios.
 
+![OEE bench dashboard](docs/media/OEE-demo.png)
+
+*The dashboard at the end of the bench run (the `normal` scenario, seed 42:
+OEE 84.1%).*
+
+## Simulator
 ## QEMU (LM3S6965): the MCU without an MCU
 
 Week 6: node A's model compiled into a `no_std` Cortex-M3 firmware for the
