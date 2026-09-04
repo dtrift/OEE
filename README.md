@@ -140,7 +140,10 @@ section) — the model Q dataset; the `--belt-events` mode (+ `--belt-meta`)
 emits the IR-barrier level stream (`t_ms,ir`) plus the part truth
 (`t_ms,pulses`, the `[belt]` section) — node P's input. The three channels
 are independent seeded streams: requesting one changes neither of the
-others.
+others. `soak.toml` stretches the same densities to 3 h of simulated
+time — the message-load scenario (~100 000 messages on `oee/line1/#`;
+replay it with the release binaries: the debug ones crawl on the ~0.6 GB
+of CSVs — 184 s vs 6 s for node A).
 
 ## ML pipeline
 

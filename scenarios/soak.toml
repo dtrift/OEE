@@ -1,0 +1,112 @@
+# The message-load scenario (week 6, user request): the same densities as
+# week5/normal.toml, stretched to 3 h of simulated time — ~100 000 messages
+# on oee/line1/# (parts ~25.6k + taps ~27k, roughly doubled by the
+# aggregator's republishes). A soak test of the bench broker/aggregator,
+# NOT a demo scenario: the replay flies by in tens of seconds, and the
+# artifacts weigh ~0.6 GB (run.csv ~300 MB, taps.csv ~240 MB) — see the
+# run notes in the week-6 gate.
+#
+# The state events are spread over the whole timeline: node A publishes
+# only on confirmed status changes, so bunched events would silence it for
+# hours (P and Q keep streaming regardless — they dominate the count).
+
+duration_ms = 10800000
+
+[[events]]
+t_ms = 2000
+state = "Run"
+
+[[events]]
+t_ms = 1200000
+state = "Jam"
+
+[[events]]
+t_ms = 1200030
+state = "Run"
+
+[[events]]
+t_ms = 2400000
+state = "Overload"
+
+[[events]]
+t_ms = 2400060
+state = "Run"
+
+[[events]]
+t_ms = 3600000
+state = "Jam"
+
+[[events]]
+t_ms = 3600020
+state = "Run"
+
+[[events]]
+t_ms = 4800000
+state = "Idle"
+
+[[events]]
+t_ms = 5100000
+state = "Run"
+
+[[events]]
+t_ms = 6000000
+state = "Overload"
+
+[[events]]
+t_ms = 6000090
+state = "Run"
+
+[[events]]
+t_ms = 7200000
+state = "Jam"
+
+[[events]]
+t_ms = 7200025
+state = "Run"
+
+[[events]]
+t_ms = 8400000
+state = "Idle"
+
+[[events]]
+t_ms = 8700000
+state = "Run"
+
+[[events]]
+t_ms = 9600000
+state = "Jam"
+
+[[events]]
+t_ms = 9600030
+state = "Run"
+
+[[events]]
+t_ms = 10400000
+state = "Overload"
+
+[[events]]
+t_ms = 10400060
+state = "Run"
+
+[[events]]
+t_ms = 10790000
+state = "Idle"
+
+[envelope]
+idle = 0.4
+run = 2.0
+jam = 3.2
+overload = 4.5
+
+[noise]
+sigma_a = 0.12
+
+[taps]
+period_ms = 400
+crack_probability = 0.05
+
+[belt]
+period_ms = 400
+jitter = 0.15
+double_probability = 0.1
+skip_probability = 0.05
