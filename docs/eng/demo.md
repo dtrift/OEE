@@ -5,10 +5,10 @@
 > a full-screen terminal (OBS or the platform's recorder), 1080p, dark
 > theme.
 >
-> A recorded run already exists for the 1M soak variant:
-> [`../media/OEE-bench-1m.mp4`](../media/OEE-bench-1m.mp4) — the dashboard
-> winding up to ~1.07M messages. It is that variant's take, not the
-> full four-scene scenario below.
+> Recordings: the demo take (58 s) —
+> [`../media/OEE-demo.mp4`](../media/OEE-demo.mp4); a run of the 1M soak
+> variant — [`../media/OEE-bench-1m.mp4`](../media/OEE-bench-1m.mp4)
+> (the dashboard winding up to ~1.07M messages).
 
 ## Prep (before hitting record)
 

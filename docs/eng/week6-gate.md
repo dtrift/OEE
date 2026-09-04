@@ -9,14 +9,14 @@
 
 ## Gate checklist
 
-| Gate item                                                                  | Status | Artifact / check                                                                                                                                               |
-| -------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| QEMU: the fork's example and our own model A on LM3S6965, output over UART | yes    | the fork's `examples/qemu` (sine, speech) build for `thumbv7m` and run; `qemu/` firmware: model A, 4 fixed windows, probabilities over UART0, semihosting exit |
-| Predictions match the host                                                 | yes    | `scripts/qemu-parity.sh` → `PARITY OK: 4 windows, bit-for-bit` (identical probability bits, host x86_64 vs Cortex-M3)                                          |
-| Footprint: flash/RAM from the ELF, Δ conv1d vs trick vs dense              | yes    | `scripts/footprint.sh` — the table below; the conv2d variant's predictions verified identical to conv1d before measuring                                       |
-| Criterion: Conv1D vs the Conv2D trick; model min/avg/max latency           | yes    | `fork/microflow/benches/conv1d.rs` (kernels + `predict()`), `examples/latency.rs` (min/avg/max, 20k runs); the tables below                                    |
-| The report assembled (results, limitations)                                | yes    | [`report.md`](report.md) (+ [rus pair](../rus/report.md)) — 4 conclusions, each with its table and reproduction command                                        |
-| The demo reproduces from a clean clone                                     | yes    | the scenario [`demo.md`](demo.md) (+ rus pair); every beat is one command; the recording itself is the human step (the scenario names the takes)               |
+| Gate item                                                                  | Status | Artifact / check                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| QEMU: the fork's example and our own model A on LM3S6965, output over UART | yes    | the fork's `examples/qemu` (sine, speech) build for `thumbv7m` and run; `qemu/` firmware: model A, 4 fixed windows, probabilities over UART0, semihosting exit                                                                 |
+| Predictions match the host                                                 | yes    | `scripts/qemu-parity.sh` → `PARITY OK: 4 windows, bit-for-bit` (identical probability bits, host x86_64 vs Cortex-M3)                                                                                                          |
+| Footprint: flash/RAM from the ELF, Δ conv1d vs trick vs dense              | yes    | `scripts/footprint.sh` — the table below; the conv2d variant's predictions verified identical to conv1d before measuring                                                                                                       |
+| Criterion: Conv1D vs the Conv2D trick; model min/avg/max latency           | yes    | `fork/microflow/benches/conv1d.rs` (kernels + `predict()`), `examples/latency.rs` (min/avg/max, 20k runs); the tables below                                                                                                    |
+| The report assembled (results, limitations)                                | yes    | [`report.md`](report.md) (+ [rus pair](../rus/report.md)) — 4 conclusions, each with its table and reproduction command                                                                                                        |
+| The demo reproduces from a clean clone                                     | yes    | the scenario [`demo.md`](demo.md) (+ rus pair); every beat is one command; the recording — [`../media/OEE-demo.mp4`](../media/OEE-demo.mp4) (58 s) + the 1M-bench run [`../media/OEE-bench-1m.mp4`](../media/OEE-bench-1m.mp4) |
 
 ## The numbers (regenerate commands inline)
 
@@ -111,7 +111,9 @@ report's "the benchmark caught its own contribution's hole" story.
   serialization toy (random weights, 8-value input), not a trained dense
   model on node-A data — the report says so explicitly; a trained
   `ModelDense` is future work.
-- **The demo recording itself** is the human step: the scenario, the
+- **The demo recording**: done — [`media/OEE-demo.mp4`](../media/OEE-demo.mp4)
+  (58 s; the 1M-bench run — [`media/OEE-bench-1m.mp4`](../media/OEE-bench-1m.mp4)).
+  The scenario, the
   one-command beats and the backup take are the deliverables here.
 
 ## Risks (plan section 11, week-6 view)

@@ -224,8 +224,10 @@ footprint и отчёт — чеклисты и артефакты в гейт-�
 [`week5-gate.md`](./docs/rus/week5-gate.md),
 [`week6-gate.md`](./docs/rus/week6-gate.md); отчёт —
 [`docs/rus/report.md`](./docs/rus/report.md), сценарий демо —
-[`docs/rus/demo.md`](./docs/rus/demo.md), а также запись прогона на миллион
-сообщений — [`docs/media/OEE-bench-1m.mp4`](./docs/media/OEE-bench-1m.mp4)
+[`docs/rus/demo.md`](./docs/rus/demo.md) с записью
+[`docs/media/OEE-demo.mp4`](./docs/media/OEE-demo.mp4), а также запись
+прогона на миллион сообщений —
+[`docs/media/OEE-bench-1m.mp4`](./docs/media/OEE-bench-1m.mp4)
 (дашборд наматывает ~1.07 млн сообщений).
 
 Главный результат недели 5 — измеренное против истинного OEE (полный
