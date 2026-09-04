@@ -63,12 +63,17 @@ Check: on a scenario with doubles and skips, the P count = truth.
 
 ## D2 (Tue, ~2–3 h) — aggregator: MQTT + windows
 
-1. Subscription to `oee/line1/{a/status, p/count, q/verdict}`; aggregation windows: a
-   minute and a shift (plan section 1).
-2. Formulas over the window on top of the ready-made `oee()`: A = Run/Planned, P =
-   IdealCycle×Count/RT, Q = Good/Total (or 1.0 per the cut-line).
-3. Publishing `oee/line1/oee` (the JSON schema is the D3 dashboard contract) + a CSV
-   log (raw material for the experiment table).
+1. `mqtt-min` learns to subscribe (the week 5 first task per the week-4 gate):
+   SUBSCRIBE/SUBACK (QoS 0) + incoming PUBLISH parsing; the `mqtt_min::testing`
+   loopback broker — dispatch to subscribers; tests on the same wire path as
+   week 4 (rumqttc is not fetchable offline — week 4's publishing already runs
+   on mqtt-min).
+2. Subscription to `oee/line1/{a/status, p/count, q/verdict}`; aggregation
+   windows: a minute and a shift (plan section 1).
+3. Formulas over the window on top of the ready-made `oee()`: A = Run/Planned,
+   P = IdealCycle×Count/RT, Q = Good/Total (or 1.0 per the cut-line).
+4. Publishing `oee/line1/oee` (the JSON schema is the D3 dashboard contract)
+   + a CSV log (raw material for the experiment table).
 
 Check: on a hand-made scenario the components converge with the truth by construction;
 a unit test on a fixed window.
@@ -78,15 +83,16 @@ a unit test on a fixed window.
 A new crate `oee-dashboard` (the 6th workspace entity: root + 5 crates), the whole
 stack in Rust. Layers:
 
-| Layer                  | What it does                                      | Tests          |
-| ---------------------- | ------------------------------------------------- | -------------- |
-| MQTT thread (rumqttc)  | subscribe `oee/line1/#` → an mpsc channel         | reuse of nodes |
-| `DashboardState`       | pure `on_message(topic, payload)` — all the logic | unit tests     |
-| render `ui(f, &state)` | OEE/A/P/Q Gauge, counter, verdicts, Sparkline     | by eye         |
+| Layer                  | What it does                                      | Tests               |
+| ---------------------- | ------------------------------------------------- | ------------------- |
+| MQTT thread (mqtt-min) | subscribe `oee/line1/#` → an mpsc channel         | the loopback broker |
+| `DashboardState`       | pure `on_message(topic, payload)` — all the logic | unit tests          |
+| render `ui(f, &state)` | OEE/A/P/Q Gauge, counter, verdicts, Sparkline     | by eye              |
 
 1. (0:00–0:20) the crate skeleton, `ratatui::init()`, hello-world on screen.
-2. (0:20–0:50) the MQTT thread (copy-paste of the week 4 node's subscription) + channel
-   + an "updated N s ago" status bar (notices a broker disconnect).
+2. (0:20–0:50) the MQTT thread on top of the D2 mqtt-min SUBSCRIBE (the week 4
+   nodes only publish — they have no subscription) + channel + an "updated N s
+   ago" status bar (notices a broker disconnect).
 3. (0:50–1:40) `on_message`: JSON `oee/line1/oee` (the schema from D2), zone colors
    (green ≥85%, yellow ≥60% — plan section 1 guidelines), the P counter, a Q verdict
    ticker; a unit test on a corrupt payload — garbage does not take down the display
@@ -136,8 +142,9 @@ Check: the table is filled in for all four scenarios.
 2. Retro: hours; what to carry into week 6.
 3. Week 6 plan: QEMU, benchmarks, report, demo.
 
-Artifact: `docs/week5-gate.md` (in the early plan — `tmp/OEE/week5-gate.md`;
-`tmp/` is gitignored, precedent — week 1).
+Artifact: `docs/{rus,eng}/week5-gate.md` (a rus/eng pair — the week 3–4
+convention; in the early plan — `tmp/OEE/week5-gate.md`; `tmp/` is gitignored,
+precedent — week 1).
 
 ## Escalation points
 

@@ -63,16 +63,27 @@ pub struct RunSummary {
     pub statuses: usize,
 }
 
-/// Runs node A over a run-CSV source: windows -> classify -> hysteresis ->
-/// the sink. Errors in the stream isolate to dropped windows; the run ends
-/// only on `Exhausted` (a partial trailing window is dropped).
+/// Runs node A over a run-CSV source with the default anti-flap
+/// hysteresis (see [`CONFIRM_AFTER`]).
 pub fn run_a<R: std::io::Read>(
     source: &mut SimSource<R>,
     run_id: &str,
     sink: &mut dyn StatusSink,
 ) -> RunSummary {
+    run_a_confirmed(source, run_id, sink, CONFIRM_AFTER)
+}
+
+/// [`run_a`] with an explicit hysteresis depth — the week-5 D5 sensitivity
+/// sweep (1 window = fast but flappy, 2 = the line default, 3 = calm but
+/// blind to short episodes).
+pub fn run_a_confirmed<R: std::io::Read>(
+    source: &mut SimSource<R>,
+    run_id: &str,
+    sink: &mut dyn StatusSink,
+    confirm_after: u32,
+) -> RunSummary {
     let mut accumulator = WindowAccumulator::new(WINDOW);
-    let mut hysteresis = Hysteresis::new(CONFIRM_AFTER);
+    let mut hysteresis = Hysteresis::new(confirm_after);
     let mut summary = RunSummary::default();
     // Exhaustion ends the run; a partial trailing window is dropped.
     while let Ok(sample) = source.next_sample() {

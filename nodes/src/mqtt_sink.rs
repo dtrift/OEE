@@ -14,16 +14,26 @@ use mqtt_min::Client;
 
 use crate::status::{StatusRow, StatusSink};
 
-/// MQTT topic layout of the OEE line (the aggregator contract, week 5).
+/// MQTT topic layout of the OEE line (the aggregator contract, weeks 4-5).
 pub mod topics {
     /// Node A status changes: JSON `{state,t_ms,run_id}`.
     pub const A_STATUS: &str = "oee/line1/a/status";
     /// Node A metadata (published once at startup): model + WindowSpec.
     pub const A_META: &str = "oee/line1/a/meta";
+    /// Node P cumulative part count: JSON `{count,t_ms,run_id}` (week 5).
+    pub const P_COUNT: &str = "oee/line1/p/count";
+    /// Node P metadata (published once at startup).
+    pub const P_META: &str = "oee/line1/p/meta";
     /// Node Q verdicts: JSON `{verdict,t_ms,run_id}`.
     pub const Q_VERDICT: &str = "oee/line1/q/verdict";
     /// Node Q metadata (published once at startup).
     pub const Q_META: &str = "oee/line1/q/meta";
+
+    /// Stream-end marker of a node: JSON `{t_ms,run_id}` — the aggregator
+    /// flushes its final window once every expected node has ended.
+    pub fn end(node: &str) -> String {
+        format!("oee/line1/{node}/end")
+    }
 }
 
 /// An MQTT sink with lazy connect and capped-backoff reconnect.
@@ -113,24 +123,54 @@ impl MqttSink {
     /// Publishes the node Q meta line.
     pub fn publish_q_meta(&mut self, model: &str, samples: usize, rate_hz: u32) -> bool {
         let payload = format!(
-            r#"{{"model":"{model}","window_samples":{samples},"sample_rate_hz":{rate_hz}}}"#
+            r#"{{\"model\":\"{model}\",\"window_samples\":{samples},\"sample_rate_hz\":{rate_hz}}}"#
         );
         self.publish(topics::Q_META, &payload)
+    }
+
+    /// Publishes the node P meta line (event-driven: no window, no rate).
+    pub fn publish_p_meta(&mut self) -> bool {
+        let payload = r#"{"model":"ir-edge-detector","anti_double_ms":100}"#;
+        self.publish(topics::P_META, payload)
+    }
+
+    /// Publishes the stream-end marker of a node (the aggregator's
+    /// flush signal; `t_ms` = the node's last seen stream time).
+    pub fn publish_end(&mut self, node: &str, t_ms: u32, run_id: &str) -> bool {
+        let payload = format!(r#"{{"t_ms":{t_ms},"run_id":"{run_id}"}}"#);
+        self.publish(&topics::end(node), &payload)
     }
 }
 
 impl StatusSink for MqttSink {
     fn on_status(&mut self, row: &StatusRow) {
         // The topic/payload shape is per-node; the row carries the node.
-        let (topic, key) = if row.node == "a" {
-            (topics::A_STATUS, "state")
+        // Node P rows carry the cumulative count in `state`.
+        let (topic, payload) = if row.node == "a" {
+            (
+                topics::A_STATUS,
+                format!(
+                    r#"{{"state":"{}","t_ms":{},"run_id":"{}"}}"#,
+                    row.state, row.t_ms, row.run_id
+                ),
+            )
+        } else if row.node == "p" {
+            (
+                topics::P_COUNT,
+                format!(
+                    r#"{{"count":{},"t_ms":{},"run_id":"{}"}}"#,
+                    row.state, row.t_ms, row.run_id
+                ),
+            )
         } else {
-            (topics::Q_VERDICT, "verdict")
+            (
+                topics::Q_VERDICT,
+                format!(
+                    r#"{{"verdict":"{}","t_ms":{},"run_id":"{}"}}"#,
+                    row.state, row.t_ms, row.run_id
+                ),
+            )
         };
-        let payload = format!(
-            r#"{{"{key}":"{}","t_ms":{},"run_id":"{}"}}"#,
-            row.state, row.t_ms, row.run_id
-        );
         self.publish(topic, &payload);
     }
 }
@@ -186,6 +226,45 @@ mod tests {
             r#"{"verdict":"cracked","t_ms":400,"run_id":"run1"}"#
         );
         assert_eq!(sink.publishes(), 3);
+    }
+
+    #[test]
+    fn p_counts_and_end_markers_reach_the_broker() {
+        let broker = LoopbackBroker::spawn();
+        let mut sink = MqttSink::new(&broker.addr, "node-p");
+        assert!(sink.publish_p_meta());
+        sink.on_status(&row("p", "1", 2400));
+        sink.on_status(&row("p", "2", 2800));
+        assert!(sink.publish_end("p", 57_900, "normal-42"));
+
+        let first = broker
+            .publishes
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(first.topic, "oee/line1/p/meta");
+        assert_eq!(
+            first.payload,
+            r#"{"model":"ir-edge-detector","anti_double_ms":100}"#
+        );
+        let second = broker
+            .publishes
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(second.topic, "oee/line1/p/count");
+        assert_eq!(second.payload, r#"{"count":1,"t_ms":2400,"run_id":"run1"}"#);
+        let third = broker
+            .publishes
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(third.topic, "oee/line1/p/count");
+        assert_eq!(third.payload, r#"{"count":2,"t_ms":2800,"run_id":"run1"}"#);
+        let fourth = broker
+            .publishes
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(fourth.topic, "oee/line1/p/end");
+        assert_eq!(fourth.payload, r#"{"t_ms":57900,"run_id":"normal-42"}"#);
+        assert_eq!(sink.publishes(), 4);
     }
 
     #[test]

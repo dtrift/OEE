@@ -8,16 +8,38 @@
 //! - a predict-latency smoke ("not worse than the line tempo").
 
 use line_simulator::scenario::Scenario;
-use line_simulator::{taps, Simulator};
+use line_simulator::{belt, taps, Simulator};
 use mqtt_min::testing::LoopbackBroker;
 use nalgebra::SMatrix;
 use nodes::mqtt_sink::MqttSink;
-use nodes::sim_source::{SimSource, TapSource};
+use nodes::sim_source::{IrSource, SimSource, TapSource};
 use nodes::status::{MultiSink, StatusRow, VecSink};
-use nodes::{a, q};
+use nodes::{a, p, q};
 
 const BASE_TOML: &str = include_str!("../../scenarios/base.toml");
 const TAPS_TOML: &str = include_str!("../../scenarios/taps.toml");
+
+/// A belt-heavy scenario text: doubles and skips tuned up (the D1 gate
+/// check runs against exactly this shape).
+const BELT_TOML: &str = r#"
+duration_ms = 30000
+
+[[events]]
+t_ms = 1000
+state = "Run"
+
+[[events]]
+t_ms = 29000
+state = "Idle"
+
+[belt]
+period_ms = 400
+jitter = 0.15
+double_probability = 0.3
+skip_probability = 0.2
+pulse_ms = 30
+double_gap_ms = 40
+"#;
 
 /// Runs the simulator over a scenario, returning the run CSV text.
 fn run_csv(scenario: &Scenario, seed: u64) -> String {
@@ -239,6 +261,126 @@ fn both_nodes_one_run_with_mqtt() {
         expected,
         "statuses must reach MQTT exactly once each"
     );
+}
+
+/// The belt-events CSV text for a scenario (the same rows the simulator
+/// CLI writes via `--belt-events`).
+fn belt_csv(scenario: &Scenario, seed: u64) -> (String, usize, usize) {
+    let parts = belt::generate(scenario, seed);
+    let doubles = parts.iter().filter(|part| part.pulses == 2).count();
+    let mut events = Vec::new();
+    belt::write_events_csv(&parts, &scenario.belt, &mut events).unwrap();
+    (String::from_utf8(events).unwrap(), parts.len(), doubles)
+}
+
+#[test]
+fn node_p_count_matches_the_belt_truth() {
+    // The D1 gate: on a scenario with doubles and skips, count = truth.
+    let scenario = Scenario::parse(BELT_TOML).expect("belt scenario");
+    let (events, truth_parts, doubles) = belt_csv(&scenario, 42);
+    assert!(doubles > 0, "the check must exercise doubles (seed 42)");
+    assert!(
+        truth_parts < (29_000 - 1_000) / 400,
+        "the check must exercise skips ({} parts vs 70 slots)",
+        truth_parts
+    );
+
+    let mut source = IrSource::new(events.as_bytes());
+    let mut sink = VecSink::default();
+    let summary = p::run_p(&mut source, "run1", &mut sink);
+
+    assert_eq!(summary.parts as usize, truth_parts, "count = truth");
+    assert_eq!(summary.merged, doubles, "one merge per double");
+    assert_eq!(summary.bad_rows, 0);
+    assert_eq!(sink.0.len(), truth_parts, "one status row per part");
+    // The rows carry the cumulative count in `state`.
+    assert_eq!(sink.0[0].state, "1");
+    assert_eq!(sink.0.last().unwrap().state, truth_parts.to_string());
+    // Determinism: a second pass over the same stream is identical.
+    let mut source2 = IrSource::new(events.as_bytes());
+    let mut sink2 = VecSink::default();
+    let summary2 = p::run_p(&mut source2, "run1", &mut sink2);
+    assert_eq!(summary, summary2);
+    assert_eq!(sink.0, sink2.0);
+}
+
+#[test]
+fn node_p_survives_corrupt_rows() {
+    let scenario = Scenario::parse(BELT_TOML).expect("belt scenario");
+    let (events, truth_parts, _) = belt_csv(&scenario, 42);
+    // Corrupt every 10th event row: skipped, not fatal.
+    let mut broken = String::new();
+    for (i, line) in events.lines().enumerate() {
+        if i % 10 == 3 {
+            broken.push_str("garbage,row\n");
+        } else {
+            broken.push_str(line);
+            broken.push('\n');
+        }
+    }
+    let mut source = IrSource::new(broken.as_bytes());
+    let mut sink = VecSink::default();
+    let summary = p::run_p(&mut source, "run1", &mut sink);
+    assert!(summary.bad_rows > 0, "the corrupt rows are counted");
+    assert!(
+        summary.parts < truth_parts as u32,
+        "lost edges are lost parts (an honest gap, documented)"
+    );
+    assert!(
+        !sink.0.is_empty(),
+        "the node keeps counting after corruption"
+    );
+}
+
+#[test]
+fn node_p_publishes_counts_over_mqtt() {
+    // The p/count topic shape + the end marker — the aggregator contract.
+    let scenario = Scenario::parse(BELT_TOML).expect("belt scenario");
+    let (events, _, _) = belt_csv(&scenario, 42);
+    let broker = LoopbackBroker::spawn();
+    let mut mqtt = MqttSink::new(&broker.addr, "node-p");
+    mqtt.publish_p_meta();
+
+    let mut source = IrSource::new(events.as_bytes());
+    let mut offline = VecSink::default();
+    let summary = p::run_p(
+        &mut source,
+        "belt42",
+        &mut MultiSink(&mut offline, &mut mqtt),
+    );
+    let last_t = source.last_t_ms();
+    mqtt.publish_end("p", last_t, "belt42");
+
+    // Every offline row also reached the broker, plus meta + end.
+    let expected = offline.0.len() + 2;
+    let mut topics = Vec::new();
+    while topics.len() < expected {
+        match broker
+            .publishes
+            .recv_timeout(std::time::Duration::from_secs(5))
+        {
+            Ok(publish) => topics.push(publish),
+            Err(_) => break,
+        }
+    }
+    assert_eq!(topics.len(), expected);
+    assert_eq!(topics[0].topic, "oee/line1/p/meta");
+    let first_count = &topics[1];
+    assert_eq!(first_count.topic, "oee/line1/p/count");
+    assert_eq!(
+        first_count.payload,
+        format!(
+            r#"{{"count":1,"t_ms":{},"run_id":"belt42"}}"#,
+            offline.0[0].t_ms
+        )
+    );
+    let end = topics.last().unwrap();
+    assert_eq!(end.topic, "oee/line1/p/end");
+    assert_eq!(
+        end.payload,
+        format!(r#"{{"t_ms":{last_t},"run_id":"belt42"}}"#)
+    );
+    assert_eq!(summary.parts as usize, offline.0.len());
 }
 
 #[test]
