@@ -1,13 +1,31 @@
 [workspace]
 resolver = "2"
-members = ["board", "a", "q", "p"]
+members = ["board", "a", "q", "p", "tools"]
 
 # A workspace separate from the root OEE one (precedent: fork/microflow):
 # firmwares build with the espup xtensa-esp32s3-none-elf toolchain and must
-# not enter the host CI of the root workspace. The skeleton compiles on the
-# host without the esp toolchain (see README.md).
+# not enter the host CI of the root workspace. The pure logic (lib.rs of
+# each node) still builds and tests on the host without the esp toolchain:
+# the esp-hal dependency is target-gated, see a/Cargo.toml.
+
+# The fork's nalgebra patch (the root-workspace convention, week 3/D6):
+# this workspace path-depends on fork/microflow, so the patch must be
+# duplicated here — otherwise nalgebra silently comes from crates.io.
+[patch.crates-io]
+nalgebra = { git = "https://github.com/matteocarnelos/nalgebra" }
 
 [workspace.package]
 edition = "2021"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+# Shared, host-and-target crates. Paths resolve from firmware/ (this
+# manifest), not from the member crates.
+board = { path = "board" }
+features-cli = { path = "../features-cli" }
+microflow = { path = "../fork/microflow" }
+nalgebra = { version = "0.32", default-features = false, features = ["macros"] }
+
+[profile.release]
+lto = true

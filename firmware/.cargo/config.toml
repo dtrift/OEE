@@ -1,0 +1,21 @@
+# The Xtensa build (espup toolchain):
+#
+#     . $HOME/export-esp.sh                                 # PATH: xtensa-esp-elf-gcc (the linker)
+#     export PATH="$HOME/.rustup/toolchains/esp/bin:$PATH"  # esp cargo + esp rustc
+#     cargo build -p firmware-a --target xtensa-esp32s3-none-elf
+#
+# The esp toolchain lives in ~/.rustup (espup's default), not in the
+# asdf-managed RUSTUP_HOME the shell uses. The PATH prepend is required:
+# called by its full path, esp's cargo still resolves `rustc` from PATH
+# (the shell's stable rustc) and fails on the -Z build-std flags.
+
+[unstable]
+build-std = ["core"]
+
+[target.xtensa-esp32s3-none-elf]
+rustflags = [
+    # esp-hal ships the full link chain: linkall.x -> memory.x + alias.x +
+    # esp32s3.x + hal-defaults.x (all in the esp-hal build out-dir, already
+    # on the linker search path). No local memory.x is needed.
+    "-C", "link-arg=-Tlinkall.x",
+]

@@ -1,4 +1,4 @@
-# firmware/ — node firmware skeletons (the hardware track)
+# firmware/ — node firmwares (the hardware track)
 
 Russian version: [README.ru.md](README.ru.md). The shakedown plan (sessions
 S0–S7, the gate): [docs/eng/decompose/firmware.md](../docs/eng/decompose/firmware.md).
@@ -9,41 +9,189 @@ node P plus the stretch camera (its camera wiring takes some pins). A
 separate workspace, like `fork/microflow`: the target toolchain (Xtensa,
 `espup`) must not affect the host CI of the root workspace.
 
-## Status: skeleton without the esp toolchain
+## Status: implemented, awaiting bench bring-up
 
-All crates build on the host with plain `cargo` (no dependencies). This is
-deliberate: the structure and contracts are being pinned down now; the
-toolchain gets connected at shakedown time. What is already a contract:
+The track is implemented in code; the physical bring-up (S0 blinky → S6
+counting) is the remaining human-on-hardware part:
+
+- **`firmware-{a,q,p}`** build for `xtensa-esp32s3-none-elf` (esp-hal 1.2,
+  the `unstable` driver modules) **and** on the host (an empty stub binary;
+  the node logic is the host-tested lib of each crate):
+  - `a`: ADC1@GPIO4 1.6 kHz → startup zero calibration (`with_zero_counts`)
+    → window 128 → `model_a` → hysteresis ×2 → `a,run_id,t_ms,state` lines;
+  - `q`: servo PWM (LEDC 50 Hz, GPIO11) → settle → window 1024 → `model_q`
+    → `q,run_id,t_ms,verdict` lines. **S4 TODO**: the window is a synthetic
+    tap until the I2S/INMP441 driver lands (`i2s_slots_to_f32` in the lib
+    is pinned by host tests; a tone-check dump is the bring-up step);
+  - `p`: TCRT5000@GPIO5, 1 kHz poll → 50 ms debounce → counter →
+    `p,run_id,t_ms,count` lines.
+- **`firmware-tools`** (host): `capture-to-run` (the board capture CSV →
+  the host node input, the S3 cross-check) and `uart-bridge` (stdin lines →
+  MQTT `oee/line1/*` + end markers — phase 2, the week-5 loop against the
+  physical bench without network code on the boards).
+- **CI**: two jobs — `firmware` (Xtensa build-only) and `firmware-host`
+  (fmt + clippy + the lib tests).
+
+## Building
+
+Host (no toolchain needed — logic tests):
+
+```bash
+cd firmware && cargo test --workspace
+```
+
+Target (once per shell):
+
+```bash
+cargo install espup && espup install   # the patched Xtensa toolchain
+. $HOME/export-esp.sh                  # the linker (xtensa-esp-elf-gcc) PATH
+```
+
+The esp toolchain lives in `~/.rustup/toolchains/esp` (espup's default),
+which the asdf-managed shell rustup does not see. Prepend its `bin` to
+`PATH` — called by full path, esp's cargo still resolves `rustc` from
+`PATH` (the shell's stable rustc) and fails on the `-Z` build-std flags:
+
+```bash
+cd firmware
+export PATH="$HOME/.rustup/toolchains/esp/bin:$PATH"
+cargo build \
+    -p firmware-a -p firmware-q -p firmware-p \
+    --target xtensa-esp32s3-none-elf
+```
+
+Flash and monitor — see the next section.
+
+## Flashing the boards
+
+One ELF per board (espflash converts it into a bootable image itself — no
+separate .bin to prepare). Use the **release** builds; match the binary to
+the board's wiring (`board` is the single source of truth):
+
+| Board                                 | Node | File (`firmware/target/xtensa-esp32s3-none-elf/release/`) |
+| ------------------------------------- | ---- | --------------------------------------------------------- |
+| DevKitC-1 #1 (ACS712 on GPIO4)        | A    | `firmware-a`                                              |
+| DevKitC-1 #2 (servo GPIO11 + INMP441) | Q    | `firmware-q`                                              |
+| CAM board (TCRT5000 on GPIO5)         | P    | `firmware-p`                                              |
+
+The boards differ by their USB serial port — check `/dev/ttyUSB*`:
+
+```bash
+espflash flash --port /dev/ttyUSB0 target/xtensa-esp32s3-none-elf/release/firmware-a
+espflash flash --port /dev/ttyUSB1 target/xtensa-esp32s3-none-elf/release/firmware-q
+espflash flash --port /dev/ttyUSB2 target/xtensa-esp32s3-none-elf/release/firmware-p
+```
+
+`--monitor` right after flashing shows the console immediately. If a
+board is not seen, hold **BOOT** while plugging it in (the USB download
+mode).
+
+What a live image prints over UART (115200) — the first bring-up check:
+
+- A: `a: boot, run_id=bench-a` → `a: zero=NNN` (the startup zero
+  calibration) → `a,bench-a,<t_ms>,<state>` lines on confirmed changes;
+- Q: `q: boot, run_id=bench-q` → `q,bench-q,<t_ms>,<verdict>` every
+  ~400 ms (a synthetic window until the S4 I2S step);
+- P: `p: boot, run_id=bench-p` → `p,bench-p,<t_ms>,<count>` per part.
+
+Do NOT flash:
+
+- `qemu/target/.../oee-qemu` — the week-6 LM3S6965/Cortex-M3 artifact,
+  a different toolchain and target; it will not boot on an ESP32-S3;
+- the debug builds work but are 10× larger for no bring-up benefit
+  (panics print their UART line in release too).
+
+## Checking the UART output
+
+Plug the board's **UART** micro-USB port (the one by the buttons,
+labeled "UART", through the CP2102 bridge → `/dev/ttyUSB*`) — not the
+OTG port: the firmware does not use the native USB.
+
+```bash
+# option 1: espflash (already installed for flashing) — sets 115200 and
+# resets the board itself
+espflash monitor --port /dev/ttyUSB0
+
+# option 2: picocom / screen / minicom, if installed
+picocom /dev/ttyUSB0 -b 115200
+
+# option 3: nothing to install
+stty -F /dev/ttyUSB0 115200 raw -echo && cat /dev/ttyUSB0
+```
+
+"Permission denied" on `/dev/ttyUSB*` → `sudo usermod -aG dialout $USER`
+and re-login.
+
+What to expect (no sensors attached):
+
+- **Q — the most talkative**: `q: boot, run_id=bench-q`, then
+  `q,bench-q,<t_ms>,<verdict>` every ~400 ms (the servo cycle does not
+  need the mic; the window is synthetic until S4). A 50 Hz square wave
+  with a changing duty is on GPIO11.
+- **A**: `a: boot...` → `a: zero=NNN` half a second later (the zero
+  calibration on a floating input), then statuses — possibly rare
+  changes (a floating ACS712 is noisy).
+- **P**: only `p: boot...` — no sensor, no events. To check reactivity:
+  jumper GPIO5 → 3V3 (hold ≥ 60 ms, release, repeat — the 50 ms debounce
+eats the touch bounce) and the `p,bench-p,...,N` count grows.
+
+The full pipeline without a terminal — the same stream straight to MQTT
+(boot lines are filtered by the bridge, pinned by its tests):
+
+```bash
+cat /dev/ttyUSB0 | cargo run -p firmware-tools --bin uart-bridge -- 127.0.0.1:1883
+```
+
+A live bridge check **without a board** — feed it the lines by hand:
+
+```bash
+printf 'a: boot, run_id=bench-a\na,bench-a,1000,run\nq,bench-q,2000,good\np,bench-p,3000,1\n' | \
+    cargo run -p firmware-tools --bin uart-bridge -- 127.0.0.1:1883
+```
+
+`bridge: 4 messages (a+p+q)` — and the dashboard gauges (run with the
+broker + aggregator + dashboard as in "The bench loop") wake up.
+
+Without hardware at all: the line formats and semantics are pinned by
+the host tests (`cd firmware && cargo test --workspace`), and there is no
+QEMU path for the ESP32-S3 (the project's emulated line is the LM3S6965,
+`scripts/qemu-parity.sh` — a different target). Garbage instead of lines
+almost always means a wrong baud (115200) or the OTG port instead of the
+UART port.
+
+## The contracts in play
 
 - `board` — bench pins, the single source of truth (a test checks the
   assignments against the S3 reserved-pin list);
 - `features-cli` (root workspace) — window/rate contracts (`window_spec`),
-  ADC → amps calibration, and the capture CSV schema; the crate is
-  `#![no_std]`, firmwares depend on it via a path dependency;
-- `nodes::source::SensorSource` — the node data source
-  (SimSource/AdcSource/I2sSource).
-
-## Bringing it up (first on-board build)
-
-1. `cargo install espup && espup install` — the patched Xtensa toolchain.
-2. `rustup component add rust-src` (for build-std).
-3. `. $HOME/export-esp.sh` (espup environment variables).
-4. In the node crate, uncomment the dependencies and build:
-   `cargo build -p firmware-a --target xtensa-esp32s3-none-elf`.
-5. Flash and monitor: `espflash flash` / `espflash monitor`.
-
-Once a real `esp-hal` dependency appears, add a third CI job — build-only
-under Xtensa (firmwares have no host tests: a human verifies on hardware).
+  the ADC → amps calibration (incl. the runtime zero correction), the
+  capture CSV schema; `#![no_std]`, used here via a path dependency;
+- `nodes::source::SensorSource` — the node data source contract (the host
+  `SimSource` twin); the firmware libs mirror the host `nodes::status`
+  semantics (window/hysteresis), pinned by tests incl. a model-parity
+  fixture against the real validation split.
 
 ## Crates
 
-| Crate        | Role                                                                |
-| ------------ | ------------------------------------------------------------------- |
-| `board`      | Bench pins per node + reserved pins (N16R8; the CAM board — node P) |
-| `firmware-a` | Node A: ACS712 → ADC1 → calibration → window → predict → status     |
-| `firmware-q` | Node Q: servo tapper → I2S INMP441 → window → predict → verdict     |
-| `firmware-p` | Node P (the CAM board): TCRT5000 → edge + 50 ms debounce → counting |
+| Crate            | Role                                                                |
+| ---------------- | ------------------------------------------------------------------- |
+| `board`          | Bench pins per node + reserved pins (N16R8; the CAM board — node P) |
+| `firmware-a`     | Node A: ACS712 → ADC1 → calibration → window → predict → status     |
+| `firmware-q`     | Node Q: servo tapper → I2S INMP441 → window → predict → verdict     |
+| `firmware-p`     | Node P (the CAM board): TCRT5000 → edge + 50 ms debounce → counting |
+| `firmware-tools` | Host bench tools: `capture-to-run`, `uart-bridge`                   |
 
 Node Q servo power is a separate 5 V supply (not the board's USB): the
 servo inrush current sags the rail and reboots the board; keep a 470 µF
 capacitor at the servo pins.
+
+## The bench loop (phase 2, after bring-up)
+
+```bash
+# terminal 1: the broker + the week-5 aggregator/dashboard
+./target/debug/broker 1883 &
+./target/debug/aggregator --mqtt 127.0.0.1:1883 --ideal-cycle-ms 400 --out windows.csv
+./target/debug/oee-dashboard --mqtt 127.0.0.1:1883
+# terminal 2: the boards' lines into MQTT
+cat /dev/ttyUSB0 | cargo run -p firmware-tools --bin uart-bridge -- 127.0.0.1:1883
+```

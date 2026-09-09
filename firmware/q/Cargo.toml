@@ -7,7 +7,12 @@ license.workspace = true
 publish = false
 
 [dependencies]
-# Uncomment for the first on-board build (see ../README.md):
-# board = { path = "../board" }
-# features-cli = { path = "../../features-cli" }
-# esp-hal = { version = "1.1.2", features = ["esp32s3"] }
+board = { workspace = true }
+features-cli = { workspace = true }
+microflow = { workspace = true }
+nalgebra = { workspace = true }
+libm = "0.2"
+
+# The on-target half (see a/Cargo.toml).
+[target.'cfg(target_arch = "xtensa")'.dependencies]
+esp-hal = { version = "1.2", features = ["esp32s3", "unstable"] }
