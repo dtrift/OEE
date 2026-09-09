@@ -98,6 +98,64 @@ Do NOT flash:
 - the debug builds work but are 10× larger for no bring-up benefit
   (panics print their UART line in release too).
 
+## Checking the UART output
+
+Plug the board's **UART** micro-USB port (the one by the buttons,
+labeled "UART", through the CP2102 bridge → `/dev/ttyUSB*`) — not the
+OTG port: the firmware does not use the native USB.
+
+```bash
+# option 1: espflash (already installed for flashing) — sets 115200 and
+# resets the board itself
+espflash monitor --port /dev/ttyUSB0
+
+# option 2: picocom / screen / minicom, if installed
+picocom /dev/ttyUSB0 -b 115200
+
+# option 3: nothing to install
+stty -F /dev/ttyUSB0 115200 raw -echo && cat /dev/ttyUSB0
+```
+
+"Permission denied" on `/dev/ttyUSB*` → `sudo usermod -aG dialout $USER`
+and re-login.
+
+What to expect (no sensors attached):
+
+- **Q — the most talkative**: `q: boot, run_id=bench-q`, then
+  `q,bench-q,<t_ms>,<verdict>` every ~400 ms (the servo cycle does not
+  need the mic; the window is synthetic until S4). A 50 Hz square wave
+  with a changing duty is on GPIO11.
+- **A**: `a: boot...` → `a: zero=NNN` half a second later (the zero
+  calibration on a floating input), then statuses — possibly rare
+  changes (a floating ACS712 is noisy).
+- **P**: only `p: boot...` — no sensor, no events. To check reactivity:
+  jumper GPIO5 → 3V3 (hold ≥ 60 ms, release, repeat — the 50 ms debounce
+eats the touch bounce) and the `p,bench-p,...,N` count grows.
+
+The full pipeline without a terminal — the same stream straight to MQTT
+(boot lines are filtered by the bridge, pinned by its tests):
+
+```bash
+cat /dev/ttyUSB0 | cargo run -p firmware-tools --bin uart-bridge -- 127.0.0.1:1883
+```
+
+A live bridge check **without a board** — feed it the lines by hand:
+
+```bash
+printf 'a: boot, run_id=bench-a\na,bench-a,1000,run\nq,bench-q,2000,good\np,bench-p,3000,1\n' | \
+    cargo run -p firmware-tools --bin uart-bridge -- 127.0.0.1:1883
+```
+
+`bridge: 4 messages (a+p+q)` — and the dashboard gauges (run with the
+broker + aggregator + dashboard as in "The bench loop") wake up.
+
+Without hardware at all: the line formats and semantics are pinned by
+the host tests (`cd firmware && cargo test --workspace`), and there is no
+QEMU path for the ESP32-S3 (the project's emulated line is the LM3S6965,
+`scripts/qemu-parity.sh` — a different target). Garbage instead of lines
+almost always means a wrong baud (115200) or the OTG port instead of the
+UART port.
+
 ## The contracts in play
 
 - `board` — bench pins, the single source of truth (a test checks the
