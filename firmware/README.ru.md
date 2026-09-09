@@ -49,11 +49,14 @@ cargo install espup && espup install   # пропатченный Xtensa-тул�
 ```
 
 Esp-тулчейн стоит в `~/.rustup/toolchains/esp` (дефолт espup), который
-asdf-шелловый rustup не видит — поэтому полный путь:
+asdf-шелловый rustup не видит. Добавьте его `bin` в начало `PATH` — при
+вызове по полному пути cargo из esp всё равно берёт `rustc` из `PATH`
+(шелловый stable) и падает на `-Z`-флагах build-std:
 
 ```bash
 cd firmware
-~/.rustup/toolchains/esp/bin/cargo build \
+export PATH="$HOME/.rustup/toolchains/esp/bin:$PATH"
+cargo build \
     -p firmware-a -p firmware-q -p firmware-p \
     --target xtensa-esp32s3-none-elf
 ```

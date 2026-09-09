@@ -48,11 +48,14 @@ cargo install espup && espup install   # the patched Xtensa toolchain
 ```
 
 The esp toolchain lives in `~/.rustup/toolchains/esp` (espup's default),
-which the asdf-managed shell rustup does not see — hence the full path:
+which the asdf-managed shell rustup does not see. Prepend its `bin` to
+`PATH` — called by full path, esp's cargo still resolves `rustc` from
+`PATH` (the shell's stable rustc) and fails on the `-Z` build-std flags:
 
 ```bash
 cd firmware
-~/.rustup/toolchains/esp/bin/cargo build \
+export PATH="$HOME/.rustup/toolchains/esp/bin:$PATH"
+cargo build \
     -p firmware-a -p firmware-q -p firmware-p \
     --target xtensa-esp32s3-none-elf
 ```

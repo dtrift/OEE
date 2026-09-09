@@ -94,10 +94,14 @@ jobs:
           espup install
           . ${HOME}/export-esp.sh
 
+      # esp's cargo resolves `rustc` via PATH: without the prepend it would
+      # run the runner's preinstalled stable rustc and fail on the -Z
+      # build-std flags (the toolchain must match — both cargo and rustc esp).
       - name: Build firmware (xtensa-esp32s3-none-elf)
         run: |
           . ${HOME}/export-esp.sh
-          ${HOME}/.rustup/toolchains/esp/bin/cargo build \
+          export PATH="${HOME}/.rustup/toolchains/esp/bin:${PATH}"
+          cargo build \
             -p firmware-a -p firmware-q -p firmware-p \
             --target xtensa-esp32s3-none-elf
 
