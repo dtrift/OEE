@@ -41,17 +41,17 @@
 Top view (the scale is nominal):
 
 ```text
-                ┌──[machine PSU 12 V]─╪═ IP+ ACS712 IP− ═╪─┐
-                │      (a break in the machine's power line)   │
-                ▼                                              ▼
-        ╔══════════╗    ┌─[DevKitC-1 #1 + ACS712]            ╔═╗
-        ║ MACHINE  ║    │   (node A: the drive current)      ║P║ ── [DevKitC-1 #2]
-        ║ fan/drill ║    ▼                                    ║a║     (node Q: servo +
-        ║ + a bolt  ║ ────▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶─── ║r║      INMP441)
-        ╚══════════╝         THE CONVEYOR BELT             ╚═╝      ▲ the tap position:
-                       nuts/washers ride the belt →→→→→→→→→ └── [the CAM board]
-                                                        the end:   (node P: the TCRT5000
-                                                        TCRT5000   in the drop-off gap)
+                +--[machine PSU 12 V]-+= IP+ ACS712 IP- =+---+
+                |      (a break in the machine's power line) |
+                v                                            v
+        +===========+    +-[DevKitC-1 #1 + ACS712]           +=+
+        | MACHINE   |    |   (node A: the drive current)     |P| -- [DevKitC-1 #2]
+        | fan/drill |    v                                   |a|     (node Q: servo +
+        | + a bolt  | ---->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>--- |r|      INMP441)
+        +===========+         THE CONVEYOR BELT              +=+      ^ the tap position:
+                       nuts/washers ride the belt >>>>>>>>>> +-- [the CAM board]
+                                                         the end:   (node P: the TCRT5000
+                                                         TCRT5000   in the drop-off gap)
 ```
 
 The mechanical assembly order:
@@ -99,18 +99,18 @@ arrive — one breadboard per node, each block moves over as-is.
 nominal — the point is not to overlap):
 
 ```text
- top (+) rail:  3.3 V (from the Q board's 3V3 pin)     ←— low-current only!
- top (−) rail:  GND (common to all boards)
+ top (+) rail:  3.3 V (from the Q board's 3V3 pin)     <— low-current only!
+ top (-) rail:  GND (common to all boards)
 
  rows 1–5:   [NODE Q]  INMP441 (the module across the center groove)
  rows 8–12:  [NODE Q]  the servo header: PSU +5 V, GND, the GPIO11 signal;
                        the 470 µF capacitor between +5 V and GND HERE
- rows 20–24: [NODE A]  the ACS712 divider: OUT—10k—●—10k—GND,
-                       the tap ● — to GPIO4 (the diagram in section 4a)
+ rows 20–24: [NODE A]  the ACS712 divider: OUT—10k—o—10k—GND,
+                       the tap o — to GPIO4 (the diagram in section 4a)
  rows 30–32: [NODE P]  TCRT5000: VCC/OUT/GND (section 6a)
 
  bottom (+) rail: 5 V (from the A board's 5V pin) — the ACS712's VCC only
- bottom (−) rail: a GND continuation (a jumper from the top (−))
+ bottom (-) rail: a GND continuation (a jumper from the top (-))
 ```
 
 **Wire color discipline** (it saves debugging time): red — +5 V, orange —
@@ -162,21 +162,21 @@ Wiring the ACS712-20A through a divider (the S3 pins are not 5 V-tolerant):
 ### 4a. Node A's breadboard diagram
 
 ```text
-                the ACS712-20A module (lies next to the breadboard:
-   ┌───────────┐ the IP+/IP− screw terminals are wider than the grid)
-   │ VCC GND OUT│        │
-   └──┼───┼──┼─┘        │  IP+ ═══ IP− — in the BREAK of the machine's
-      │   │  │                  power line (PSU 12 V → IP+ ... IP− → fan)
-      │   │  └──── jumper (white) → row 20
-      │   └─────── jumper (black) → the (−) rail
-      └────────── jumper (red) → the bottom (+) rail = 5 V from the A board's 5V pin
+                 the ACS712-20A module (lies next to the breadboard:
+   +-------------+ the IP+/IP- screw terminals are wider than the grid)
+   | VCC GND OUT |        |
+   +--+---+---+--+        |  IP+ === IP- — in the BREAK of the machine's
+      |   |   |                  power line (PSU 12 V > IP+ ... IP- > fan)
+      |   |   +--- jumper (white) > row 20
+      |   +------- jumper (black) > the (-) rail
+      +----------- jumper (red) > the bottom (+) rail = 5 V from the A board's 5V pin
 
  The divider in rows 20–22 (the resistors "across" the center groove):
 
- row 20: ACS712 OUT ──[10 kΩ]── row 21
- row 21: ──[10 kΩ]── row 22 → row 22 bridged into the (−) rail
-                              │
- row 21 (the tap ●) ── jumper (white) → the A board's GPIO4
+ row 20: ACS712 OUT --[10 kΩ]-- row 21
+ row 21: --[10 kΩ]-- row 22 > row 22 bridged into the (-) rail
+                              |
+ row 21 (the tap o) -- jumper (white) > the A board's GPIO4
 ```
 
 Why exactly this: the top leg's drop at zero current is 2.5 V → GPIO4 sees
@@ -219,15 +219,15 @@ across the center groove (pins into rows 1–5, bank f–j):
 
 ```text
  INMP441 (a view of the module's pins; the order — per YOUR module's marking!)
- ┌─────────────────────┐
- │ VDD GND SD SCK WS L/R│
- └─┼───┼──┼───┼───┼──┼─┘
-   │   │  │   │   │  └─ a bridge to the adjacent GND row (the left channel)
-   │   │  │   │   └── jumper (yellow) → GPIO13 (WS)
-   │   │  │   └────── jumper (yellow) → GPIO12 (SCK)
-   │   │  └────────── jumper (yellow) → GPIO14 (SD)
-   │   └───────────── a bridge into the (−) rail
-   └───────────────── jumper (orange) into the top (+) rail = the Q board's 3.3 V
+ +-----------------------+
+ | VDD GND SD SCK WS L/R |
+ +--+---+---+--+---+--+--+
+    |   |   |  |   |  +- a bridge to the adjacent GND row (the left channel)
+    |   |   |  |   +-- jumper (yellow) > GPIO13 (WS)
+    |   |   |  +------ jumper (yellow) > GPIO12 (SCK)
+    |   |   +--------- jumper (yellow) > GPIO14 (SD)
+    |   +------------- a bridge into the (-) rail
+    +----------------- jumper (orange) into the top (+) rail = the Q board's 3.3 V
 ```
 
 Keep the I2S wires short (≤15 cm): 16 kHz tolerates longer ones, but
@@ -239,14 +239,14 @@ The servo is NOT on the breadboard: its three wires arrive at rows 8–12 as
 the "servo power header":
 
 ```text
- row  8:  [servo PSU +5 V] ──●─ ──► the SG90's red wire
-               │            │
-               │        470 µF (the minus leg into row 10!)
-               │            │
- row 10:  [GND] ─────────●─ ──► the SG90's brown wire
-                        │
-                        └── a bridge into the (−) rail → the Q board's GND
- row 12:  [signal] ←── a jumper (blue) from GPIO11 ──► the SG90's orange wire
+ row  8:  [servo PSU +5 V] --o- --> the SG90's red wire
+                             |
+                             |   470 µF (the minus leg into row 10!)
+                             |
+ row 10:  [GND] ---------o- --> the SG90's brown wire
+                         |
+                         +-- a bridge into the (-) rail > the Q board's GND
+ row 12:  [signal] <-- a jumper (blue) from GPIO11 --> the SG90's orange wire
 ```
 
 The capacitor is an electrolytic: the long leg (plus) into row 8, the
@@ -277,12 +277,12 @@ The TCRT5000 module (3–4 pins: VCC, GND, OUT, some also + A0) — into rows
 
 ```text
  TCRT5000
- ┌─────────────┐
- │ VCC GND OUT (A0 unused)
- └─┼───┼───┼─┘
-   │   │   └── jumper (white) → the CAM board's GPIO5
-   │   └────── a bridge into the (−) rail
-   └────────── jumper (orange) into the top (+) rail = the P board's 3.3 V
+ +------------------------+
+ | VCC GND OUT (A0 unused)|
+ +--+---+---+-------------+
+    |   |   +-- jumper (white) > the CAM board's GPIO5
+    |   +------ a bridge into the (-) rail
+    +---------- jumper (orange) into the top (+) rail = the P board's 3.3 V
 ```
 
 Mounting on the belt: the emitter/receiver look ACROSS the direction of
