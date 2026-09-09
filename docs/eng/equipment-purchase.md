@@ -178,7 +178,7 @@ weeks — hence the search links; pick the lot by the rules below.
 | 9     | TCRT5000                            | [search](https://www.ozon.ru/search/?text=TCRT5000+модуль)                       | ✅ 2 pcs   |
 | 10    | Nuts/washers M5–M8                  | [search](https://www.ozon.ru/search/?text=набор+гаек+шайб+М5+М6+М8)              | 🏠 have    |
 | 11    | DIY mini conveyor                   | [search](https://www.ozon.ru/search/?text=mini+conveyor+belt+arduino)            | ✅ 1 pc    |
-| 13    | Breadboard, 830 holes               | [search](https://www.ozon.ru/search/?text=макетная+плата+MB-102+830)             | ✅ 1 pc    |
+| 13    | Breadboard, 830 holes               | [search](https://www.ozon.ru/search/?text=макетная+плата+MB-102+830)             | ✅ 4 pcs   |
 | 14a   | Jumpers male-male                   | [search](https://www.ozon.ru/search/?text=провода+перемычки+папа-папа+40+шт)     | ✅ 40 pcs  |
 | 14b   | Jumpers male-female                 | [search](https://www.ozon.ru/search/?text=провода+перемычки+папа-мама+40+шт)     | ✅ 40 pcs  |
 | 16    | USB-C cable (data!)                 | [search](https://www.ozon.ru/search/?text=кабель+USB-C+для+передачи+данных+1м)   | 🏠 have    |
@@ -190,14 +190,14 @@ weeks — hence the search links; pick the lot by the rules below.
 
 "🏠" — already at home, not ordered: the USB-C cables (№16), the multimeter
 (№20), the M5–M8 nuts/washers (№10). All critical positions are closed: the
-cart (the boards, the sensors, a breadboard, jumpers, resistors, five 470 µF
+cart (the boards, the sensors, breadboards, jumpers, resistors, five 470 µF
 16 V capacitors, one hundred 30 cm skewers, a 100×350 mm conveyor with a
 manual 0–116 rpm speed control — check the bundled adapter and its voltage).
 Check the home cables №16 that they are data, not charge-only (rule 3). The
 skewers: cut the tapper to ~10–15 cm (30 cm springs), hot glue / a zip tie
-to the SG90 horn. Cart status as of 2026-08-20: the CAM board covers node P
-(IR) + the stretch camera, the DevKitC-1 ×2 — nodes A and Q. Four
-breadboards were planned — with 1 pc, assemble the nodes one at a time.
+to the SG90 horn. Cart status as of 2026-09-09: the CAM board covers node P
+(IR) + the stretch camera, the DevKitC-1 ×2 — nodes A and Q; all 4 planned
+breadboards are in stock.
 
 Lot-picking rules (the main traps):
 

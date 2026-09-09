@@ -10,7 +10,7 @@
 >
 > The bench: 2× ESP32-S3-DevKitC-1 (N16R8) — nodes A and Q; 1×
 > ESP32-S3-WROOM-1 N16R8 CAM with OV2640 — node P + the stretch camera.
-> Assemble one node per session (1 breadboard in stock out of the 4 planned)
+> Assemble one node per session (all 4 planned breadboards are in stock)
 > — the order: A → Q → P.
 
 ## 1. The bench bill of materials
@@ -91,9 +91,10 @@ connections are M-F jumpers from the board's pins into the breadboard
 rows.
 
 An MB-102 breadboard (830 points): two power rail pairs along the edges
-(`+`/`−`) and 63 rows × 2 middle banks. While there is a single
-breadboard, all three nodes live on it (the layout below); when the rest
-arrive — one breadboard per node, each block moves over as-is.
+(`+`/`−`) and 63 rows × 2 middle banks. All 4 planned breadboards are in
+stock — one per node is an option; below is the compact layout with all
+three nodes on a single board (shared rails and ground), each block moves
+onto its own breadboard as-is.
 
 **The single-breadboard layout across three nodes** (the row numbers are
 nominal — the point is not to overlap):
