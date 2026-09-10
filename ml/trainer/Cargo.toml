@@ -16,6 +16,11 @@ rand = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 
+# Contract tests only (review card 20260909120007): TIMESTEPS pinned to
+# the single source of truth.
+[dev-dependencies]
+features-cli = { path = "../../features-cli" }
+
 [[bin]]
 name = "smoke"
 path = "src/bin/smoke.rs"

@@ -25,6 +25,10 @@ struct TapModel;
 /// `features_cli::window_spec`).
 pub const WINDOW: usize = 1024;
 
+/// The node Q source rate, Hz (the INMP441 over I2S) — pinned to the
+/// contract by a test.
+pub const SAMPLE_RATE_HZ: u32 = 16_000;
+
 /// Verdict names by class index (`taps::Verdict::as_str` order).
 pub const VERDICT_NAMES: [&str; 2] = ["good", "cracked"];
 
@@ -104,5 +108,14 @@ mod tests {
         let second = classify(&window);
         assert_eq!(first, second);
         assert!(first < 2, "verdict index out of range: {first}");
+    }
+
+    /// Review card 20260909120007 (nodes half): WINDOW and the rate were
+    /// hand copies — pin both to the single source of truth.
+    #[test]
+    fn window_matches_the_features_cli_contract() {
+        let spec = features_cli::window_spec(features_cli::NodeKind::Q).unwrap();
+        assert_eq!(WINDOW, spec.samples);
+        assert_eq!(SAMPLE_RATE_HZ, spec.sample_rate_hz);
     }
 }

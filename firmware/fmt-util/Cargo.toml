@@ -1,0 +1,9 @@
+[package]
+name = "fmt-util"
+description = "Shared no_std formatting helpers: the fixed-buffer cursor and the NaN-safe argmax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]

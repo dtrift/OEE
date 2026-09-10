@@ -727,6 +727,7 @@ dependencies = [
  "board",
  "esp-hal",
  "features-cli",
+ "fmt-util",
  "microflow",
  "nalgebra",
 ]
@@ -737,6 +738,7 @@ version = "0.1.0"
 dependencies = [
  "board",
  "esp-hal",
+ "fmt-util",
 ]
 
 [[package]]
@@ -746,6 +748,7 @@ dependencies = [
  "board",
  "esp-hal",
  "features-cli",
+ "fmt-util",
  "libm",
  "microflow",
  "nalgebra",
@@ -767,6 +770,10 @@ dependencies = [
  "bitflags",
  "rustc_version",
 ]
+
+[[package]]
+name = "fmt-util"
+version = "0.1.0"
 
 [[package]]
 name = "fnv"

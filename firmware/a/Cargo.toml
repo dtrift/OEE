@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 board = { workspace = true }
 features-cli = { workspace = true }
+fmt-util = { workspace = true }
 microflow = { workspace = true }
 nalgebra = { workspace = true }
 

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["board", "a", "q", "p", "tools"]
+members = ["board", "a", "q", "p", "tools", "fmt-util"]
 
 # A workspace separate from the root OEE one (precedent: fork/microflow):
 # firmwares build with the espup xtensa-esp32s3-none-elf toolchain and must
@@ -24,6 +24,7 @@ license = "MIT OR Apache-2.0"
 # manifest), not from the member crates.
 board = { path = "board" }
 features-cli = { path = "../features-cli" }
+fmt-util = { path = "fmt-util" }
 microflow = { path = "../fork/microflow" }
 nalgebra = { version = "0.32", default-features = false, features = ["macros"] }
 

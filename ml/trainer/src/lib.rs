@@ -70,3 +70,19 @@ impl TaskSpec {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Review card 20260909120007 (trainer half): TIMESTEPS were hand
+    /// copies — pin them to the single source of truth (a change in
+    /// `window_spec` must fail here, not diverge models from firmware).
+    #[test]
+    fn timesteps_match_the_features_cli_contract() {
+        let a = features_cli::window_spec(features_cli::NodeKind::A).unwrap();
+        assert_eq!(TIMESTEPS, a.samples);
+        let q = features_cli::window_spec(features_cli::NodeKind::Q).unwrap();
+        assert_eq!(Q_TIMESTEPS, q.samples);
+    }
+}

@@ -19,7 +19,10 @@ use microflow::model;
 use nalgebra::matrix;
 use panic_halt as _;
 
+// Only the samples head is read here (a size probe); the shared module
+// also carries the ground-truth label — not dead in the other consumers.
 #[path = "../windows.rs"]
+#[allow(dead_code)]
 mod windows;
 
 #[model("../ml/models/dense.tflite")]

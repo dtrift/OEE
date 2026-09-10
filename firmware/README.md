@@ -101,6 +101,17 @@ Do NOT flash:
 - the debug builds work but are 10× larger for no bring-up benefit
   (panics print their UART line in release too).
 
+## Stack headroom (measured)
+
+The whole remaining DRAM serves as the main-task stack (esp-hal 1.2
+`ld/sections/stack.x`: `_stack_start = ORIGIN(RWDATA) + LENGTH(RWDATA)`, with
+a build-time ASSERT on the configured minimum). For the 2026-09-10 release
+builds: statics end at `0x3FC91FE0`, the `dram_seg` top is `0x3FCDB700` —
+**~294 KiB of stack** against a ~25 KiB peak of the `firmware-q` predict
+chain (the 1024-f32 window lives in static memory, not on the stack —
+review card 20260909120032). Bring-up: still check the high-water mark
+before the real I2S driver lands (DMA buffers will add on top).
+
 ## Checking the UART output
 
 Plug the board's **UART** micro-USB port (the one by the buttons,

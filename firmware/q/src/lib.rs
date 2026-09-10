@@ -14,8 +14,14 @@
 
 use core::fmt::Write as _;
 
+use fmt_util::Cursor;
 use microflow::model;
 use nalgebra::SMatrix;
+
+// The classify fixture: the first label=good validation window, loaded
+// from `good_window.rs` (test-only: the streaming firmware never needs it).
+#[cfg(test)]
+mod good_window;
 
 /// Window length and rate: `features_cli::window_spec(NodeKind::Q)`
 /// (1024 @ 16 kHz = 64 ms).
@@ -35,13 +41,9 @@ pub fn classify(window: &[f32; WINDOW]) -> ([f32; 2], usize) {
     for (slot, value) in probs.iter_mut().zip(output.iter()) {
         *slot = *value;
     }
-    let verdict = probs
-        .iter()
-        .enumerate()
-        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-        .map(|(index, _)| index)
-        .unwrap_or(usize::MAX);
-    (probs, verdict)
+    // NaN-safe and tie-compatible with the host `nodes::q` argmax
+    // (max_by: the last maximum wins).
+    (probs, fmt_util::argmax(&probs))
 }
 
 /// Converts raw I2S 32-bit slots to normalized f32 samples.
@@ -75,35 +77,6 @@ pub fn format_verdict(out: &mut [u8], run_id: &str, t_ms: u32, verdict: usize) -
     Some(cursor.pos())
 }
 
-/// A minimal fixed-buffer write cursor (the `firmware-a` twin).
-struct Cursor<'a> {
-    buf: &'a mut [u8],
-    written: usize,
-}
-
-impl<'a> Cursor<'a> {
-    fn new(buf: &'a mut [u8]) -> Self {
-        Self { buf, written: 0 }
-    }
-
-    fn pos(&self) -> usize {
-        self.written
-    }
-}
-
-impl core::fmt::Write for Cursor<'_> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        let bytes = s.as_bytes();
-        if bytes.len() > self.buf.len() {
-            return Err(core::fmt::Error);
-        }
-        self.buf[..bytes.len()].copy_from_slice(bytes);
-        self.buf = &mut core::mem::take(&mut self.buf)[bytes.len()..];
-        self.written += bytes.len();
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,21 +100,24 @@ mod tests {
     }
 
     /// The model is the same rust-born `model_q.tflite` as the host node:
-    /// the first label=good validation window must classify as good.
+    /// the first label=good validation window (`good_window.rs`, generated
+    /// from `ml/models/model_q.val.csv`) must classify as good — the
+    /// `firmware-a` RUN_WINDOW pattern (real training-distribution data;
+    /// review card 20260909120041: the old synthetic-window test was
+    /// vacuous).
     #[test]
     fn classify_matches_the_host_node_q() {
-        // A quiet decaying "ring" shape, good-part family: the real fixture
-        // would be the val split; a synthetic quiet window keeps the test
-        // independent of dataset files (the host side pins the dataset
-        // parity in `ml/exporter`).
-        let mut window = [0.0f32; WINDOW];
-        for (i, slot) in window.iter_mut().enumerate() {
-            let t = i as f32 / WINDOW as f32;
-            *slot = (t * 120.0 * core::f32::consts::PI).sin() * (1.0 - t) * 0.05;
-        }
-        let (probs, verdict) = classify(&window);
-        // The assertion is deliberately soft: the exact class of a
-        // synthetic window is not the contract here — the conversion is.
-        assert!(verdict < 2, "probs={probs:?}");
+        let (probs, verdict) = classify(&good_window::GOOD_WINDOW);
+        assert_eq!(verdict, 0, "the good class: probs={probs:?}");
+    }
+
+    /// Review card 20260909120007 (firmware half): the WINDOW constant is
+    /// a hand copy — pin it to the single source of truth. The rate
+    /// (16 kHz) is fixed by the I2S driver on the target; the window size
+    /// is the model contract.
+    #[test]
+    fn window_matches_the_features_cli_contract() {
+        let spec = features_cli::window_spec(features_cli::NodeKind::Q).unwrap();
+        assert_eq!(WINDOW, spec.samples);
     }
 }

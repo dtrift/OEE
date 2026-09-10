@@ -32,14 +32,12 @@ mod app {
     use features_cli::calibration::CurrentCalibration;
 
     use firmware_a::{
-        classify, format_status, Hysteresis, WindowAccumulator, WindowOutcome, CONFIRM_AFTER,
+        advance_ms, classify, format_status, Hysteresis, WindowAccumulator, WindowOutcome,
+        CONFIRM_AFTER, SAMPLE_US,
     };
 
     /// Run id of this firmware image (the offline-CSV family uses it verbatim).
     const RUN_ID: &str = "bench-a";
-
-    /// ADC sampling period, us (`features_cli::window_spec(A)` = 1.6 kHz).
-    const SAMPLE_US: u32 = 625;
 
     /// Startup zero calibration: samples averaged at no load (0.5 s of rest).
     const ZERO_SAMPLES: u32 = 800;
@@ -75,12 +73,12 @@ mod app {
 
         let mut window_acc = WindowAccumulator::new();
         let mut hysteresis = Hysteresis::new(CONFIRM_AFTER);
-        let mut t_ms: u32 = 0;
+        let mut t_us: u64 = 0;
         let mut line = [0u8; 96];
 
         loop {
             delay.delay_micros(SAMPLE_US);
-            t_ms = t_ms.wrapping_add(SAMPLE_US / 1000);
+            let t_ms = advance_ms(&mut t_us, SAMPLE_US);
             // `read_blocking` retries internally; a hard failure is a
             // reboot-grade event and simply not expected at the bench.
             let sample = Some(calibration.counts_to_amps(adc.read_blocking(&mut adc_pin)));
