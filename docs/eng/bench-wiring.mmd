@@ -1,0 +1,137 @@
+%%{init: {"theme": "neutral", "flowchart": {"htmlLabels": false, "curve": "linear", "nodeSpacing": 46, "rankSpacing": 64, "padding": 12}, "themeVariables": {"fontSize": "13px"}}}%%
+flowchart LR
+
+  %% ==================== boards ====================
+  HOST["PC1 · HOST PC<br/>flashing · power · UART log<br/>USB-C data cables ×3"]
+  UA["U1 · NODE A · DevKitC-1 #1<br/>drive current · ADC1 only<br/>(GPIO1–10, ADC2 is lost to WiFi)"]
+  UQ["U2 · NODE Q · DevKitC-1 #2<br/>I2S (any pins) + servo PWM"]
+  UP["U3 · NODE P · WROOM-1 N16R8 CAM<br/>part counting · OV2640 (stretch)<br/>camera-free pins only"]
+
+  %% ==================== sensors / actuators ====================
+  XS1["XS1 · ACS712-20A<br/>lies NEXT to BB1 (wide terminals)<br/>startup zero recal (machine off)"]
+  M2["M2 · SG90 + 15 cm stick<br/>short stroke onto the stopped part"]
+
+  %% ==================== power ====================
+  BT1["BT1 · 5 V 2 A PSU<br/>servo only!"]
+  BT2["BT2 · 12 V PSU<br/>machine line ≤ 36 V — never 220 V!"]
+
+  %% ==================== nets ====================
+  GND(("GND · common<br/>− rails of all 3 BBs bridged<br/>every node + every PSU −"))
+  P3(("+3 V<br/>top + rails BB2 + BB3<br/>from U2 3V3"))
+  P5A(("+5 V (A)<br/>BB1 bottom + rail<br/>ACS712 VCC only"))
+  P5S(("+5 V (SERVO)<br/>from BT1 · BB2 only<br/>never tied to +5 V (A)!"))
+
+  %% ==================== breadboards ====================
+  subgraph BB1 ["MB-102 #1 · BB1 · NODE A bench — current divider · U1 & XS1 lie next to it (M-F jumpers)"]
+    direction TB
+    R1["R1 · 10 kΩ · BB1 r1"]
+    TAP(("tap<br/>BB1 r2"))
+    R2["R2 · 10 kΩ · BB1 r3"]
+  end
+
+  subgraph BB2 ["MB-102 #2 · BB2 · NODE Q bench — I2S mic + servo header · U2 lies next to it (M-F jumpers)"]
+    direction TB
+    Z1["BB2 rows 1–5 · XS2 INMP441 (I2S mic)<br/>module at the tap point, 2–5 cm, membrane to the strike<br/>jumpers ≤ 15 cm · pins VDD GND SD SCK WS L/R"]
+    Z2["BB2 rows 8–12 · servo header<br/>SG90 wires land here · 470 µF across +5 V / GND<br/>long leg = + (row 8) · check a steady 5 V first"]
+  end
+
+  subgraph BB3 ["MB-102 #3 · BB3 · NODE P bench — IR counter · U3 lies next to it (M-F jumpers)"]
+    direction TB
+    Z4["BB3 rows 1–3 · XS4 TCRT5000 #1 (IR counter)<br/>beam across the drop-off gap, 2–10 mm<br/>trim by the LEDs · pins VCC GND OUT"]
+  end
+
+  %% ==================== mechanical ====================
+  subgraph MECH ["MECHANICAL — no electrical link to the nodes"]
+    M1["M1 · MACHINE<br/>fan/drill + a bolt on a blade (the load)"]
+    CONV["CONVEYOR 100×350 mm<br/>own gearmotor + speed knob + own adapter<br/>NOT monitored"]
+  end
+
+  %% ==================== options ====================
+  subgraph OPT ["OPTIONS — not in the base wiring"]
+    XS5["XS5 · TCRT5000 #2<br/>belt-end sensor (optional)"]
+    INA["INA226 (I2C option)<br/>no divider needed · not wired"]
+  end
+
+  CHK["PRE-POWER CHECKLIST<br/>USB cables pass data (a charge-only won't flash)<br/>steady 5 V at BB2 rows 8/10 before plugging the servo<br/>inter-board bridges: GND on all 3 BBs · +3 V BB2→BB3<br/>divider tap ≈ 1.2–1.3 V (machine off)<br/>TCRT LEDs: quiet when empty, blink per part<br/>taken GPIOs: 0/3/45/46 · 19/20 · 35–37 · 43/44"]
+
+  %% ==================== wires ====================
+  HOST -. "USB-C #1 (data)" .-> UA
+  HOST -. "USB-C #2" .-> UQ
+  HOST -. "USB-C #3" .-> UP
+
+  BT2 == "+12 V → IP+" ==> XS1
+  XS1 == "IP− → M+" ==> M1
+  M1 -. "− return" .-> BT2
+
+  UA -- "5V pin" --> P5A
+  P5A -- "VCC ← BB1 bottom + rail" --> XS1
+  UQ -- "3V3" --> P3
+  P3 -- "BB2 top + rail → VDD r1" --> Z1
+  P3 -- "BB2→BB3 bridge → VCC r1" --> Z4
+  BT1 -- "+" --> P5S
+  P5S -- "red → BB2 r8" --> Z2
+
+  UQ -- "SCK = GPIO12 → BB2 r4" --> Z1
+  UQ -- "WS = GPIO13 → BB2 r5" --> Z1
+  UQ -- "SD = GPIO14 → BB2 r3" --> Z1
+  UQ -- "PWM 50 Hz · GPIO11 → BB2 r12" --> Z2
+  Z2 -- "SIG (orange)" --> M2
+  M2 -- "brown − → BB2 r10" --> Z2
+
+  BT1 -- "− → common GND!" --> GND
+  Z2 -- "GND BB2 r10 → − rail" --> GND
+  Z1 -- "GND BB2 r2 · L/R→GND" --> GND
+
+  XS1 -- "OUT (white) → BB1 r1" --> R1
+  R1 -- "BB1 r2" --> TAP
+  TAP -- "tap → GPIO4 (ADC1)" --> UA
+  TAP -- "→ BB1 r3" --> R2
+  R2 -- "BB1 r3 → − rail" --> GND
+
+  Z4 -- "OUT BB3 r3 → GPIO5" --> UP
+  Z4 -- "GND BB3 r2" --> GND
+  UP --> GND
+  UA --> GND
+  UQ --> GND
+
+  XS5 -. "OUT → one more free pin" .-> UP
+  M1 -. "belt start · bolt imbalance" .- CONV
+  INA -. "I2C — not wired yet" .- XS1
+
+  %% ==================== styles ====================
+  classDef board fill:#e2e8f0,stroke:#475569,stroke-width:2px,color:#1f2937
+  classDef sensor fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a8a
+  classDef power fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#1f2937
+  classDef res fill:#ffffff,stroke:#16a34a,stroke-width:2px,color:#14532d
+  classDef net fill:#ffffff,stroke:#111827,stroke-width:1.6px,color:#111827
+  classDef zone fill:#fefce8,stroke:#ca8a04,stroke-width:1.8px,color:#713f12
+  classDef mech fill:#f8fafc,stroke:#57534e,stroke-width:1.6px,stroke-dasharray:6 4,color:#57534e
+  classDef opt fill:#f8fafc,stroke:#94a3b8,stroke-width:1.4px,stroke-dasharray:4 3,color:#475569
+  classDef note fill:#f1f5f9,stroke:#64748b,stroke-width:1.4px,color:#334155
+
+  class HOST,UA,UQ,UP board
+  class XS1,M2 sensor
+  class BT1,BT2 power
+  class R1,R2 res
+  class GND,P3,P5A,P5S,TAP net
+  class Z1,Z2,Z4 zone
+  class M1,CONV mech
+  class XS5,INA opt
+  class CHK note
+
+  linkStyle 0,1,2 stroke:#94a3b8,stroke-width:2px
+  linkStyle 3,4 stroke:#7f1d1d,stroke-width:3.5px
+  linkStyle 5 stroke:#7f1d1d,stroke-width:2px
+  linkStyle 6,7 stroke:#b91c1c,stroke-width:2.5px
+  linkStyle 8,9,10 stroke:#d97706,stroke-width:2.5px
+  linkStyle 11,12 stroke:#b91c1c,stroke-width:2.5px
+  linkStyle 13,14,15 stroke:#ca8a04,stroke-width:3px
+  linkStyle 16 stroke:#2563eb,stroke-width:3px
+  linkStyle 17 stroke:#ea580c,stroke-width:2.5px
+  linkStyle 18 stroke:#78350f,stroke-width:2.5px
+  linkStyle 19,20,21,26,28,29,30,31 stroke:#111827,stroke-width:2.2px
+  linkStyle 22,24 stroke:#64748b,stroke-width:2.5px
+  linkStyle 23,25 stroke:#16a34a,stroke-width:2.5px
+  linkStyle 27 stroke:#64748b,stroke-width:2.5px
+  linkStyle 32 stroke:#94a3b8,stroke-width:2px
+  linkStyle 33,34 stroke:#94a3b8,stroke-width:1.5px
