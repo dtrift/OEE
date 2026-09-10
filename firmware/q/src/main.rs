@@ -81,7 +81,15 @@ mod app {
         let mut servo =
             ledc.channel::<LowSpeed>(esp_hal::ledc::channel::Number::Channel0, peripherals.GPIO11);
 
-        writeln!(uart, "q: boot, run_id={RUN_ID}").ok();
+        writeln!(uart, "q: boot, run_id={RUN_ID}").unwrap();
+
+        // The 4 KiB window lives in static memory, not the main-task
+        // stack: the predict() call chain already peaks at ~17 KiB of
+        // int8 layer buffers (review card 20260909120032; the measured
+        // headroom is documented in README).
+        // SAFETY: owned exclusively by the single-threaded main loop; no
+        // interrupt handler touches it, and classify takes &[_].
+        static mut WINDOW_BUF: [f32; WINDOW] = [0.0; WINDOW];
 
         let mut t_ms: u32 = 0;
         let mut line = [0u8; 64];
@@ -96,7 +104,8 @@ mod app {
 
             // The window (S4 TODO: I2S INMP441; a deterministic synthetic
             // tap until then — quiet decay, the good-part family).
-            let mut window = [0.0f32; WINDOW];
+            // SAFETY: see the WINDOW_BUF declaration above.
+            let window = unsafe { &mut *core::ptr::addr_of_mut!(WINDOW_BUF) };
             for (i, slot) in window.iter_mut().enumerate() {
                 let t = i as f32 / WINDOW as f32;
                 *slot = libm::sinf(t * 120.0 * core::f32::consts::PI) * (1.0 - t) * 0.05;

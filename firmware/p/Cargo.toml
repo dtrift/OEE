@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 board = { workspace = true }
+fmt-util = { workspace = true }
 
 # The on-target half (see a/Cargo.toml). No model on this node: pure GPIO.
 [target.'cfg(target_arch = "xtensa")'.dependencies]

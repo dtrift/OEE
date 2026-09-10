@@ -28,6 +28,28 @@ fn topic_for(node: &str) -> Option<&'static str> {
     }
 }
 
+/// Known `state` values (the `firmware_a::STATE_NAMES` family) and verdicts
+/// (`firmware_q::VERDICT_NAMES`): the bridge publishes hand-formatted JSON,
+/// so an unknown value is rejected, never interpolated (review card
+/// 20260909120033 — a corrupt `ab"c` must not reach the aggregator).
+const STATES: [&str; 4] = ["idle", "run", "jam", "overload"];
+const VERDICTS: [&str; 2] = ["good", "cracked"];
+
+/// Reads one line as lossy UTF-8: a serial glitch (wrong baud, noise)
+/// produces U+FFFD replacements instead of an `InvalidData` error that
+/// would kill the bridge (review card 20260909120033).
+pub fn read_lossy_line<R: BufRead>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+) -> std::io::Result<Option<String>> {
+    buf.clear();
+    let n = reader.read_until(b'\n', buf)?;
+    if n == 0 {
+        return Ok(None); // EOF — the stream ended
+    }
+    Ok(Some(String::from_utf8_lossy(buf).into_owned()))
+}
+
 /// One parsed board line → (topic, payload).
 pub fn line_to_publish(line: &str) -> Option<(&'static str, String)> {
     let line = line.trim_end_matches(['\r', '\n']);
@@ -43,8 +65,12 @@ pub fn line_to_publish(line: &str) -> Option<(&'static str, String)> {
             let count: u64 = value.parse().ok()?;
             format!("{{\"t_ms\":{t},\"count\":{count}}}")
         }
-        "a" => format!("{{\"t_ms\":{t},\"state\":\"{value}\"}}"),
-        "q" => format!("{{\"t_ms\":{t},\"verdict\":\"{value}\"}}"),
+        "a" if STATES.contains(&value) => {
+            format!("{{\"t_ms\":{t},\"state\":\"{value}\"}}")
+        }
+        "q" if VERDICTS.contains(&value) => {
+            format!("{{\"t_ms\":{t},\"verdict\":\"{value}\"}}")
+        }
         _ => return None,
     };
     Some((topic, payload))
@@ -70,30 +96,44 @@ fn end_topic(node: &str) -> &'static str {
 
 /// The bridge loop: reads lines from `input`, publishes to the broker,
 /// writes the end markers when the input ends. Returns the published count.
+///
+/// A serial glitch does not kill the loop (lossy UTF-8), a publish failure
+/// degrades to a counter (one lost line must not cut the stream short),
+/// and the end markers are published on EVERY exit path — the aggregator's
+/// flush contract (review card 20260909120033).
 pub fn run_bridge<R: BufRead>(
-    input: R,
+    mut input: R,
     addr: &str,
     out: &mut impl Write,
 ) -> std::io::Result<usize> {
     let mut client = Client::connect(addr, "uart-bridge", 60)
         .map_err(|e| std::io::Error::other(format!("mqtt connect {addr}: {e:?}")))?;
     let mut published = 0usize;
+    let mut publish_errors = 0usize;
     let mut seen = [false; 3]; // a, p, q
-    for line in input.lines() {
-        let line = line?;
-        if let Some((topic, payload)) = line_to_publish(&line) {
-            client
-                .publish(topic, &payload)
-                .map_err(|e| std::io::Error::other(format!("mqtt publish: {e:?}")))?;
-            match topic {
-                "oee/line1/a/status" => seen[0] = true,
-                "oee/line1/p/count" => seen[1] = true,
-                "oee/line1/q/verdict" => seen[2] = true,
-                _ => {}
+    let mut buf = Vec::new();
+    let run = loop {
+        match read_lossy_line(&mut input, &mut buf) {
+            Err(e) => break Err(e),
+            Ok(None) => break Ok(()),
+            Ok(Some(line)) => {
+                if let Some((topic, payload)) = line_to_publish(&line) {
+                    match client.publish(topic, &payload) {
+                        Ok(()) => {
+                            match topic {
+                                "oee/line1/a/status" => seen[0] = true,
+                                "oee/line1/p/count" => seen[1] = true,
+                                "oee/line1/q/verdict" => seen[2] = true,
+                                _ => {}
+                            }
+                            published += 1;
+                        }
+                        Err(_) => publish_errors += 1,
+                    }
+                }
             }
-            published += 1;
         }
-    }
+    };
     let nodes: Vec<&str> = ["a", "p", "q"]
         .iter()
         .zip(seen)
@@ -101,13 +141,22 @@ pub fn run_bridge<R: BufRead>(
         .map(|(n, _)| *n)
         .collect();
     for (topic, payload) in end_markers(&nodes) {
-        client
-            .publish(topic, &payload)
-            .map_err(|e| std::io::Error::other(format!("mqtt end marker: {e:?}")))?;
-        published += 1;
+        match client.publish(topic, &payload) {
+            Ok(()) => published += 1,
+            Err(_) => publish_errors += 1,
+        }
     }
-    writeln!(out, "bridge: {published} messages ({})", nodes.join("+")).ok();
-    Ok(published)
+    if publish_errors > 0 {
+        writeln!(
+            out,
+            "bridge: {published} messages ({}), {publish_errors} publish errors",
+            nodes.join("+")
+        )
+        .ok();
+    } else {
+        writeln!(out, "bridge: {published} messages ({})", nodes.join("+")).ok();
+    }
+    run.map(|()| published)
 }
 
 #[cfg(test)]
@@ -143,5 +192,28 @@ mod tests {
         assert_eq!(markers.len(), 2);
         assert_eq!(markers[0].0, "oee/line1/a/end");
         assert_eq!(markers[1].0, "oee/line1/q/end");
+    }
+
+    #[test]
+    fn lossy_reading_survives_invalid_utf8() {
+        let garbage: &[u8] = b"a,bench-a,1\xff\xfe,run\np,bench-p,2,5\n";
+        let mut reader = std::io::BufReader::new(garbage);
+        let mut buf = Vec::new();
+        let first = read_lossy_line(&mut reader, &mut buf).unwrap().unwrap();
+        assert!(first.contains('\u{fffd}'), "lossy-decoded, not fatal");
+        // The bad row is not a valid status line anyway (the t_ms is not a
+        // number) — it degrades to a skip, not an error.
+        assert!(line_to_publish(first.trim_end()).is_none());
+        let second = read_lossy_line(&mut reader, &mut buf).unwrap().unwrap();
+        assert_eq!(second.trim_end(), "p,bench-p,2,5");
+    }
+
+    #[test]
+    fn unknown_state_or_verdict_is_rejected() {
+        // JSON injection is impossible: only known values pass.
+        assert!(line_to_publish("a,bench-a,1234,ab\"c").is_none());
+        assert!(line_to_publish("a,bench-a,1234,idle").is_some());
+        assert!(line_to_publish("q,bench-q,3000,good").is_some());
+        assert!(line_to_publish("q,bench-q,3000,evil").is_none());
     }
 }

@@ -14,6 +14,7 @@
 
 use core::fmt::Write as _;
 
+use fmt_util::Cursor;
 use microflow::model;
 use nalgebra::SMatrix;
 
@@ -24,6 +25,21 @@ pub const WINDOW: usize = 128;
 /// Consecutive agreeing windows before a status change is confirmed
 /// (`nodes::a::CONFIRM_AFTER`): 2 x 80 ms.
 pub const CONFIRM_AFTER: u32 = 2;
+
+/// ADC sampling period, us: `features_cli::window_spec(A)` = 1.6 kHz.
+/// 625 us is NOT a whole millisecond — see [`advance_ms`].
+pub const SAMPLE_US: u32 = 625;
+
+/// Advances the microsecond clock by `us` and returns whole milliseconds.
+///
+/// The naive `t_ms += SAMPLE_US / 1000` froze the clock at 0 (integer
+/// division: 625 / 1000 == 0 — review card 20260909120006). Microseconds
+/// accumulate in a `u64` (a `u32` would overflow after ~71.6 min); the
+/// division happens only at use.
+pub fn advance_ms(t_us: &mut u64, us: u32) -> u32 {
+    *t_us += us as u64;
+    (*t_us / 1000) as u32
+}
 
 /// Status names by class index (the `nodes::a::STATE_NAMES` order).
 pub const STATE_NAMES: [&str; 4] = ["idle", "run", "jam", "overload"];
@@ -44,13 +60,9 @@ pub fn classify(window: &[f32; WINDOW]) -> ([f32; 4], usize) {
     for (slot, value) in probs.iter_mut().zip(output.iter()) {
         *slot = *value;
     }
-    let argmax = probs
-        .iter()
-        .enumerate()
-        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-        .map(|(index, _)| index)
-        .unwrap_or(usize::MAX);
-    (probs, argmax)
+    // NaN-safe and tie-compatible with the host `nodes::a` argmax
+    // (max_by: the last maximum wins).
+    (probs, fmt_util::argmax(&probs))
 }
 
 /// The outcome of feeding one sample into [`WindowAccumulator`].
@@ -172,6 +184,8 @@ pub fn format_status(out: &mut [u8], run_id: &str, t_ms: u32, state_index: usize
 /// Formats a capture line (`features_cli::capture` schema):
 /// `<t_ms>,a,<run_id>,<value:.6>,<state>,<note>\n` — raw counts not needed;
 /// the value column carries amps (the `value` column of the schema).
+/// The S3 capture-mode line; unused by the streaming main loop by design
+/// (kept as the capture contract, review card 20260909120041).
 pub fn format_capture(
     out: &mut [u8],
     run_id: &str,
@@ -182,37 +196,6 @@ pub fn format_capture(
     let mut cursor = Cursor::new(out);
     writeln!(cursor, "{t_ms},a,{run_id},{amps:.6},{state},").ok()?;
     Some(cursor.pos())
-}
-
-/// A minimal fixed-buffer write cursor (no alloc; a format overflow is a
-/// plain `Err` — the caller passes a generously sized stack buffer).
-struct Cursor<'a> {
-    buf: &'a mut [u8],
-    written: usize,
-}
-
-impl<'a> Cursor<'a> {
-    fn new(buf: &'a mut [u8]) -> Self {
-        Self { buf, written: 0 }
-    }
-
-    /// Bytes written so far.
-    fn pos(&self) -> usize {
-        self.written
-    }
-}
-
-impl core::fmt::Write for Cursor<'_> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        let bytes = s.as_bytes();
-        if bytes.len() > self.buf.len() {
-            return Err(core::fmt::Error);
-        }
-        self.buf[..bytes.len()].copy_from_slice(bytes);
-        self.buf = &mut core::mem::take(&mut self.buf)[bytes.len()..];
-        self.written += bytes.len();
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -274,6 +257,29 @@ mod tests {
         let mut buf = [0u8; 96];
         let n = format_capture(&mut buf, "bench-a", 1234, 2.012345, "").unwrap();
         assert_eq!(&buf[..n], b"1234,a,bench-a,2.012345,,\n");
+    }
+
+    #[test]
+    fn advance_ms_is_monotonic_and_exact_over_hours() {
+        let mut t_us: u64 = 0;
+        let mut last = 0u32;
+        // 3 hours at SAMPLE_US = 625: the old `SAMPLE_US / 1000` stood at 0.
+        for _ in 0..(3 * 3600 * 1600) {
+            let now = advance_ms(&mut t_us, SAMPLE_US);
+            assert!(now >= last, "t_ms went backwards: {now} < {last}");
+            last = now;
+        }
+        assert_eq!(last, 10_800_000); // exactly 3 h, no lost fractions
+    }
+
+    /// Review card 20260909120007 (firmware half): the WINDOW constant is
+    /// a hand copy — pin it to the single source of truth.
+    #[test]
+    fn window_matches_the_features_cli_contract() {
+        let spec = features_cli::window_spec(features_cli::NodeKind::A).unwrap();
+        assert_eq!(WINDOW, spec.samples);
+        // SAMPLE_US must be the exact reciprocal of the contract rate.
+        assert_eq!(1_000_000 / SAMPLE_US, spec.sample_rate_hz);
     }
 
     /// The model path is the same rust-born `model_a.tflite` the host node

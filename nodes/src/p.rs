@@ -198,4 +198,43 @@ mod tests {
         assert_eq!(counter.on_level(400, 1), Some(1));
         assert_eq!(counter.on_level(405, 1), None, "still blocked: no edge");
     }
+
+    /// The pinned trace shared with the firmware twin
+    /// (`firmware/p/src/lib.rs`, `mirror_trace_matches_the_host_counter`):
+    /// both counters with the same 100 ms window produce the same outputs —
+    /// the mirroring the firmware docs claim, as a fact.
+    #[test]
+    fn mirror_trace_matches_the_firmware_counter() {
+        const TRACE: &[(u32, u8)] = &[
+            (0, 0),
+            (400, 1),
+            (430, 0),
+            (470, 1),
+            (500, 0),
+            (800, 1),
+            (830, 0),
+            (1200, 1),
+            (1210, 1),
+            (1300, 0),
+            (1400, 1),
+        ];
+        let mut host = EdgeCounter::new(100);
+        let outputs: Vec<Option<u32>> = TRACE.iter().map(|&(t, l)| host.on_level(t, l)).collect();
+        assert_eq!(
+            outputs,
+            vec![
+                None,
+                Some(1),
+                None,
+                None,
+                None,
+                Some(2),
+                None,
+                Some(3),
+                None,
+                None,
+                Some(4)
+            ]
+        );
+    }
 }

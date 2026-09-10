@@ -90,7 +90,9 @@ jobs:
 
       - name: Install espup and the Xtensa toolchain
         run: |
-          cargo install espup
+          # Pinned: the toolchain must match the one the released images
+          # were built with (review card 20260909120031).
+          cargo install espup --version 0.17.1 --locked
           espup install
           . ${HOME}/export-esp.sh
 
@@ -101,7 +103,9 @@ jobs:
         run: |
           . ${HOME}/export-esp.sh
           export PATH="${HOME}/.rustup/toolchains/esp/bin:${PATH}"
-          cargo build \
+          # Release: the profile we actually flash (review card
+          # 20260909120031) — the debug build never exercised LTO.
+          cargo build --release \
             -p firmware-a -p firmware-q -p firmware-p \
             --target xtensa-esp32s3-none-elf
 
