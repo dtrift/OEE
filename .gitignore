@@ -3,4 +3,4 @@ tmp/
 target/
 run*.csv
 *.tflite.tmp
-backlog/
+/backlog
