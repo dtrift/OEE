@@ -27,6 +27,19 @@ pub const WINDOW: usize = 128;
 /// Class names in model A output order (`nodes::a::STATE_NAMES`).
 pub const STATE_NAMES: [&str; 4] = ["idle", "run", "jam", "overload"];
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Review card 20260909120007 (qemu half): WINDOW was a hand copy —
+    /// pin it to the single source of truth.
+    #[test]
+    fn window_matches_the_features_cli_contract() {
+        let spec = features_cli::window_spec(features_cli::NodeKind::A).unwrap();
+        assert_eq!(WINDOW, spec.samples);
+    }
+}
+
 // rustc's cwd for this standalone package is the crate root (see
 // fork/NOTES.md, week 3, on path conventions).
 #[model("../ml/models/model_a.tflite")]

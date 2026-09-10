@@ -28,6 +28,10 @@ struct CurrentModel;
 /// `features_cli::window_spec`).
 pub const WINDOW: usize = 128;
 
+/// The node A source rate, Hz — pinned to the contract by a test (the
+/// meta payload and the test carrier below both read it).
+pub const SAMPLE_RATE_HZ: u32 = 1600;
+
 /// Status names by class index (`MachineState::class_index` order).
 pub const STATE_NAMES: [&str; 4] = ["idle", "run", "jam", "overload"];
 
@@ -162,5 +166,14 @@ mod tests {
         let run = classify(&window(2.0));
         assert_eq!(idle, 0, "idle window classified as {idle}");
         assert_eq!(run, 1, "run window classified as {run}");
+    }
+
+    /// Review card 20260909120007 (nodes half): WINDOW and the rate were
+    /// hand copies — pin both to the single source of truth.
+    #[test]
+    fn window_matches_the_features_cli_contract() {
+        let spec = features_cli::window_spec(features_cli::NodeKind::A).unwrap();
+        assert_eq!(WINDOW, spec.samples);
+        assert_eq!(SAMPLE_RATE_HZ, spec.sample_rate_hz);
     }
 }

@@ -11,6 +11,9 @@ cortex-m-semihosting = "0.5"
 panic-halt = "0.2"
 microflow = { path = "../fork/microflow" }
 nalgebra = { version = "0.32", default-features = false, features = ["macros"] }
+# The contracts crate (window sizes; review card 20260909120007): test-only
+# today, but `#![no_std]` — safe as a regular dependency.
+features-cli = { path = "../features-cli" }
 
 # The fork's nalgebra patch (see the OEE root Cargo.toml and fork/NOTES.md):
 # this package is excluded from the OEE workspace, so the patch must be
@@ -27,15 +30,23 @@ footprint-conv2d = []
 [[bin]]
 name = "oee-qemu"
 path = "src/main.rs"
+# no_std + panic_halt bins cannot link the host test harness (a duplicate
+# panic_impl); their logic is pinned by the parity script instead.
+test = false
+doctest = false
 
 [[bin]]
 name = "conv2d"
 path = "src/bin/conv2d.rs"
 required-features = ["footprint-conv2d"]
+test = false
+doctest = false
 
 [[bin]]
 name = "dense"
 path = "src/bin/dense.rs"
+test = false
+doctest = false
 
 [profile.release]
 lto = true

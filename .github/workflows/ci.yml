@@ -109,6 +109,56 @@ jobs:
             -p firmware-a -p firmware-q -p firmware-p \
             --target xtensa-esp32s3-none-elf
 
+  # Week-6 QEMU track (LM3S6965): the host/QEMU bit-parity gate as CI
+  # (review card 20260909120031). The parity script builds the thumbv7m
+  # firmware and the host reference itself; the timeout is mandatory — a
+  # firmware panic is panic-halt, an endless loop inside a hung QEMU.
+  qemu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Rust + the thumbv7m target
+        uses: dtolnay/rust-toolchain@1.96.1
+        with:
+          components: rustfmt, clippy
+          targets: thumbv7m-none-eabi
+
+      - name: Install flip-link
+        run: cargo install flip-link --locked
+
+      - name: Install qemu-system-arm
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-arm
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: |
+            qemu
+            .
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+        working-directory: qemu
+
+      # qemu/.cargo/config.toml pins build.target = thumbv7m: the target
+      # clippy covers lib+bins, the host clippy+tests need an explicit
+      # --target override (no `test` crate exists for thumbv7m).
+      - name: Clippy (thumbv7m)
+        run: cargo clippy --lib --bins -- -D warnings -A mismatched_lifetime_syntaxes
+        working-directory: qemu
+
+      - name: Clippy + tests (host)
+        run: |
+          cargo clippy --lib --tests --target x86_64-unknown-linux-gnu -- -D warnings -A mismatched_lifetime_syntaxes
+          cargo test --lib --target x86_64-unknown-linux-gnu
+        working-directory: qemu
+
+      - name: Host/QEMU parity (the week-6 gate)
+        run: timeout 300 scripts/qemu-parity.sh
+
   # The host-testable half of the firmware workspace: pure node logic
   # (window/hysteresis/debounce, line formats, the model parity fixtures)
   # and the bench tools (capture converter, UART bridge).

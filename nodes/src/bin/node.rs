@@ -80,7 +80,11 @@ fn main() -> Result<()> {
             let summary = match &args.mqtt {
                 Some(addr) => {
                     let mut mqtt = MqttSink::new(addr, &format!("node-{}", args.kind));
-                    mqtt.publish_a_meta("model_a.tflite", nodes::a::WINDOW, 1600);
+                    mqtt.publish_a_meta(
+                        "model_a.tflite",
+                        nodes::a::WINDOW,
+                        nodes::a::SAMPLE_RATE_HZ,
+                    );
                     let mut sink = MultiSink(&mut log, &mut mqtt);
                     let summary = nodes::a::run_a(&mut source, &args.run_id, &mut sink);
                     // The stream-end marker carries the stream's last time —
@@ -151,7 +155,11 @@ fn main() -> Result<()> {
             let summary = match &args.mqtt {
                 Some(addr) => {
                     let mut mqtt = MqttSink::new(addr, &format!("node-{}", args.kind));
-                    mqtt.publish_q_meta("model_q.tflite", nodes::q::WINDOW, 16_000);
+                    mqtt.publish_q_meta(
+                        "model_q.tflite",
+                        nodes::q::WINDOW,
+                        nodes::q::SAMPLE_RATE_HZ,
+                    );
                     let mut sink = MultiSink(&mut log, &mut mqtt);
                     let summary = nodes::q::run_q(&mut source, &args.run_id, &mut sink);
                     mqtt.publish_end("q", source.last_t_ms(), &args.run_id);
