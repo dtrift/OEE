@@ -55,7 +55,7 @@ which the asdf-managed shell rustup does not see. Prepend its `bin` to
 ```bash
 cd firmware
 export PATH="$HOME/.rustup/toolchains/esp/bin:$PATH"
-cargo build \
+cargo build --release \
     -p firmware-a -p firmware-q -p firmware-p \
     --target xtensa-esp32s3-none-elf
 ```

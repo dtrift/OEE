@@ -56,7 +56,7 @@ asdf-шелловый rustup не видит. Добавьте его `bin` в �
 ```bash
 cd firmware
 export PATH="$HOME/.rustup/toolchains/esp/bin:$PATH"
-cargo build \
+cargo build --release \
     -p firmware-a -p firmware-q -p firmware-p \
     --target xtensa-esp32s3-none-elf
 ```
