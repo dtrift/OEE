@@ -1,0 +1,137 @@
+%%{init: {"theme": "neutral", "flowchart": {"htmlLabels": false, "curve": "linear", "nodeSpacing": 46, "rankSpacing": 64, "padding": 12}, "themeVariables": {"fontSize": "13px"}}}%%
+flowchart LR
+
+  %% ==================== платы ====================
+  HOST["PC1 · хост-ПК<br/>прошивка · питание · лог UART<br/>USB-C data-кабели ×3"]
+  UA["U1 · Узел A · DevKitC-1 №1<br/>ток двигателя · только ADC1<br/>(GPIO1–10, ADC2 занят WiFi)"]
+  UQ["U2 · Узел Q · DevKitC-1 №2<br/>I2S (любые пины) + PWM серво"]
+  UP["U3 · Узел P · WROOM-1 N16R8 CAM<br/>счёт деталей · OV2640 (stretch)<br/>только пины, свободные от камеры"]
+
+  %% ==================== датчики / исполнительные механизмы ====================
+  XS1["XS1 · ACS712-20A<br/>лежит РЯДОМ с BB1 (широкие клеммы)<br/>стартовая калибровка нуля (станок выключен)"]
+  M2["M2 · SG90 + палочка 15 см<br/>короткий удар по остановленной детали"]
+
+  %% ==================== питание ====================
+  BT1["BT1 · БП 5 В 2 А<br/>только серво!"]
+  BT2["BT2 · БП 12 В<br/>цепь станка ≤ 36 В — никогда 220 В!"]
+
+  %% ==================== цепи ====================
+  GND(("GND · общий<br/>минусовые шины всех 3 макеток соединены<br/>минус каждого узла и каждого БП"))
+  P3(("+3 В<br/>верхние + шины BB2 + BB3<br/>с 3V3 платы U2"))
+  P5A(("+5 В (A)<br/>нижняя + шина BB1<br/>только VCC ACS712"))
+  P5S(("+5 В (СЕРВО)<br/>от BT1 · только BB2<br/>никогда не соединять с +5 В (A)!"))
+
+  %% ==================== макетные платы ====================
+  subgraph BB1 ["MB-102 №1 · BB1 · стенд узла A — делитель тока · U1 и XS1 рядом (M-F перемычки)"]
+    direction TB
+    R1["R1 · 10 кОм · BB1 стр. 1"]
+    TAP(("отвод<br/>BB1 стр. 2"))
+    R2["R2 · 10 кОм · BB1 стр. 3"]
+  end
+
+  subgraph BB2 ["MB-102 №2 · BB2 · стенд узла Q — I2S микрофон + колодка серво · U2 рядом (M-F перемычки)"]
+    direction TB
+    Z1["BB2 строки 1–5 · XS2 INMP441 (I2S микрофон)<br/>модуль у точки удара, 2–5 см, мембраной к удару<br/>перемычки ≤ 15 см · пины VDD GND SD SCK WS L/R"]
+    Z2["BB2 строки 8–12 · колодка серво<br/>провода SG90 заходят сюда · 470 мкФ между +5 В и GND<br/>длинная ножка = + (строка 8) · сначала стабильные 5 В"]
+  end
+
+  subgraph BB3 ["MB-102 №3 · BB3 · стенд узла P — ИК-счётчик · U3 рядом (M-F перемычки)"]
+    direction TB
+    Z4["BB3 строки 1–3 · XS4 TCRT5000 №1 (ИК-счётчик)<br/>луч через зазор сброса, 2–10 мм<br/>настройка по светодиодам · пины VCC GND OUT"]
+  end
+
+  %% ==================== механика ====================
+  subgraph MECH ["МЕХАНИКА — без электрической связи с узлами"]
+    M1["M1 · СТАНОК<br/>вентилятор/дрель + болт на лопасти (нагрузка)"]
+    CONV["КОНВЕЙЕР 100×350 мм<br/>свой мотор-редуктор + регулятор скорости + свой адаптер<br/>НЕ мониторится"]
+  end
+
+  %% ==================== опции ====================
+  subgraph OPT ["ОПЦИИ — не в базовой разводке"]
+    XS5["XS5 · TCRT5000 №2<br/>датчик конца ленты (опция)"]
+    INA["INA226 (опция I2C)<br/>делитель не нужен · не подключён"]
+  end
+
+  CHK["ЧЕК-ЛИСТ ПЕРЕД ПОДАЧЕЙ ПИТАНИЯ<br/>USB-кабели передают данные (charge-only не прошьёт)<br/>стабильные 5 В на строках 8/10 BB2 до подключения серво<br/>межплатные перемычки: GND на всех 3 макетках · +3 В BB2→BB3<br/>отвод делителя ≈ 1,2–1,3 В (станок выключен)<br/>светодиоды TCRT: тишина на пустой ленте, вспышка на деталь<br/>занятые GPIO: 0/3/45/46 · 19/20 · 35–37 · 43/44"]
+
+  %% ==================== провода ====================
+  HOST -. "USB-C №1 (данные)" .-> UA
+  HOST -. "USB-C №2" .-> UQ
+  HOST -. "USB-C №3" .-> UP
+
+  BT2 == "+12 В → IP+" ==> XS1
+  XS1 == "IP− → M+" ==> M1
+  M1 -. "− возврат" .-> BT2
+
+  UA -- "пин 5V" --> P5A
+  P5A -- "VCC ← нижняя + шина BB1" --> XS1
+  UQ -- "3V3" --> P3
+  P3 -- "верхняя + шина BB2 → VDD стр. 1" --> Z1
+  P3 -- "мост BB2→BB3 → VCC стр. 1" --> Z4
+  BT1 -- "+" --> P5S
+  P5S -- "красный → BB2 стр. 8" --> Z2
+
+  UQ -- "SCK = GPIO12 → BB2 стр. 4" --> Z1
+  UQ -- "WS = GPIO13 → BB2 стр. 5" --> Z1
+  UQ -- "SD = GPIO14 → BB2 стр. 3" --> Z1
+  UQ -- "PWM 50 Гц · GPIO11 → BB2 стр. 12" --> Z2
+  Z2 -- "SIG (оранжевый)" --> M2
+  M2 -- "коричневый − → BB2 стр. 10" --> Z2
+
+  BT1 -- "− → общий GND!" --> GND
+  Z2 -- "GND BB2 стр. 10 → − шина" --> GND
+  Z1 -- "GND BB2 стр. 2 · L/R→GND" --> GND
+
+  XS1 -- "OUT (белый) → BB1 стр. 1" --> R1
+  R1 -- "BB1 стр. 2" --> TAP
+  TAP -- "отвод → GPIO4 (ADC1)" --> UA
+  TAP -- "→ BB1 стр. 3" --> R2
+  R2 -- "BB1 стр. 3 → − шина" --> GND
+
+  Z4 -- "OUT BB3 стр. 3 → GPIO5" --> UP
+  Z4 -- "GND BB3 стр. 2" --> GND
+  UP --> GND
+  UA --> GND
+  UQ --> GND
+
+  XS5 -. "OUT → ещё один свободный пин" .-> UP
+  M1 -. "начало ленты · дисбаланс болта" .- CONV
+  INA -. "I2C — пока не подключён" .- XS1
+
+  %% ==================== стили ====================
+  classDef board fill:#e2e8f0,stroke:#475569,stroke-width:2px,color:#1f2937
+  classDef sensor fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a8a
+  classDef power fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#1f2937
+  classDef res fill:#ffffff,stroke:#16a34a,stroke-width:2px,color:#14532d
+  classDef net fill:#ffffff,stroke:#111827,stroke-width:1.6px,color:#111827
+  classDef zone fill:#fefce8,stroke:#ca8a04,stroke-width:1.8px,color:#713f12
+  classDef mech fill:#f8fafc,stroke:#57534e,stroke-width:1.6px,stroke-dasharray:6 4,color:#57534e
+  classDef opt fill:#f8fafc,stroke:#94a3b8,stroke-width:1.4px,stroke-dasharray:4 3,color:#475569
+  classDef note fill:#f1f5f9,stroke:#64748b,stroke-width:1.4px,color:#334155
+
+  class HOST,UA,UQ,UP board
+  class XS1,M2 sensor
+  class BT1,BT2 power
+  class R1,R2 res
+  class GND,P3,P5A,P5S,TAP net
+  class Z1,Z2,Z4 zone
+  class M1,CONV mech
+  class XS5,INA opt
+  class CHK note
+
+  linkStyle 0,1,2 stroke:#94a3b8,stroke-width:2px
+  linkStyle 3,4 stroke:#7f1d1d,stroke-width:3.5px
+  linkStyle 5 stroke:#7f1d1d,stroke-width:2px
+  linkStyle 6,7 stroke:#b91c1c,stroke-width:2.5px
+  linkStyle 8,9,10 stroke:#d97706,stroke-width:2.5px
+  linkStyle 11,12 stroke:#b91c1c,stroke-width:2.5px
+  linkStyle 13,14,15 stroke:#ca8a04,stroke-width:3px
+  linkStyle 16 stroke:#2563eb,stroke-width:3px
+  linkStyle 17 stroke:#ea580c,stroke-width:2.5px
+  linkStyle 18 stroke:#78350f,stroke-width:2.5px
+  linkStyle 19,20,21,26,28,29,30,31 stroke:#111827,stroke-width:2.2px
+  linkStyle 22,24 stroke:#64748b,stroke-width:2.5px
+  linkStyle 23,25 stroke:#16a34a,stroke-width:2.5px
+  linkStyle 27 stroke:#64748b,stroke-width:2.5px
+  linkStyle 32 stroke:#94a3b8,stroke-width:2px
+  linkStyle 33,34 stroke:#94a3b8,stroke-width:1.5px
