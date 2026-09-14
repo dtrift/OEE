@@ -9,10 +9,12 @@
 как `fork/microflow`: целевой тулчейн (Xtensa, `espup`) не должен влиять
 на хостовый CI корневого workspace.
 
-## Статус: реализовано, ожидает шейкдауна на стенде
+## Статус: реализовано; шейкдаун начат (S0 — 2026-09-14)
 
 Колея реализована в коде; физический подъём (S0 blinky → S6 счёт) —
-оставшаяся человеческая часть на железе:
+человеческая часть на железе, начата 2026-09-14.
+
+Факты шейкдауна — [NOTES.md](NOTES.md).
 
 - **`firmware-{a,q,p}`** собираются под `xtensa-esp32s3-none-elf`
   (esp-hal 1.2, драйверные модули `unstable`) **и** на хосте (бинарь —
@@ -48,6 +50,10 @@ cargo install espup && espup install   # пропатченный Xtensa-тул�
 . $HOME/export-esp.sh                  # PATH линкера (xtensa-esp-elf-gcc)
 ```
 
+Прошивальщик (хост, один раз): `cargo install espflash`. С asdf-рустом
+бинарник встаёт в `~/.asdf/installs/rust/<ver>/bin` — после установки
+сделайте `asdf reshim rust`.
+
 Esp-тулчейн стоит в `~/.rustup/toolchains/esp` (дефолт espup), который
 asdf-шелловый rustup не видит. Добавьте его `bin` в начало `PATH` — при
 вызове по полному пути cargo из esp всё равно берёт `rustc` из `PATH`
@@ -75,7 +81,8 @@ cargo build --release \
 | DevKitC-1 №2 (серво GPIO11 + INMP441)  | Q    | `firmware-q`                                               |
 | CAM-плата (TCRT5000 на GPIO5)          | P    | `firmware-p`                                               |
 
-Платы различаются по USB-последовательному порту — смотрите `/dev/ttyUSB*`:
+Платы различаются по USB-последовательному порту — смотрите `/dev/ttyUSB*`
+(мост CP2102) или `/dev/ttyACM*` (мост CH343 — см. примечание ниже):
 
 ```bash
 espflash flash --port /dev/ttyUSB0 target/xtensa-esp32s3-none-elf/release/firmware-a
@@ -85,6 +92,21 @@ espflash flash --port /dev/ttyUSB2 target/xtensa-esp32s3-none-elf/release/firmwa
 
 `--monitor` сразу после прошивки покажет консоль. Если плата не видится —
 зажмите **BOOT** при подключении (режим прошивки по USB).
+
+Имя устройства зависит от моста платы: оригинальный DevKitC-1 несёт CP2102
+→ `/dev/ttyUSB*`; на клонах его часто заменяет CH343 → `/dev/ttyACM*`
+(на ревизиях с USB-C разъём моста подписан «COM», на v1.0 с micro-USB —
+«UART»). espflash'у безразлично, `ttyUSB` это или `ttyACM`. Нативный
+«USB»-порт платы тоже даёт `/dev/ttyACM*`, но для монитора бесполезен:
+вывод идёт в аппаратный UART. Если подключено несколько плат и все они
+`ttyACM*`, различайте их по стабильным by-id-именам (серийник CH343
+уникален у каждой платы):
+
+```bash
+ls -l /dev/serial/by-id/
+espflash flash --port /dev/serial/by-id/usb-QinHeng_Electronics_USB_Single_Serial_<SN>-if00 \
+    target/xtensa-esp32s3-none-elf/release/firmware-a
+```
 
 Что печатает живой образ в UART (115200) — первая проверка шейкдауна:
 
@@ -114,9 +136,11 @@ Bring-up: всё равно проверить высокую воду до пе
 
 ## Проверка вывода UART
 
-Подключайте **UART**-порт платы (micro-USB со стороны кнопок, подписан
-«UART», через мост CP2102 → `/dev/ttyUSB*`) — не OTG-порт: прошивка
-нативный USB не использует.
+Подключайте порт моста платы — разъём со стороны кнопок: на v1.0 это
+micro-USB с маркировкой «UART», на ревизиях с USB-C и клонах — USB-C с
+маркировкой «COM». Не OTG-порт «USB»: прошивка нативный USB не
+использует. CP2102 даёт `/dev/ttyUSB*`, CH343 на клонах — `/dev/ttyACM0`
+(примеры ниже — для `/dev/ttyUSB0`).
 
 ```bash
 # вариант 1: espflash (уже стоит для прошивки) — сам ставит 115200

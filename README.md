@@ -223,6 +223,67 @@ and Q; 1× ESP32-S3-WROOM-1 N16R8 CAM with OV2640 — node P + the stretch
 camera (the purchase list —
 [`docs/eng/equipment.md`](./docs/eng/equipment.md)).
 
+The bench's first flash — 2026-09-14, node A (`firmware-a`, a DevKitC-1
+clone with a CH343 bridge): S0 passed → espflash wrote the 2nd-stage
+bootloader, the partition table and the app in one image; the node booted
+and calibrated its zero. Log:
+
+```text
+espflash flash --monitor --port /dev/ttyACM0 target/xtensa-esp32s3-none-elf/release/firmware-a
+[2026-09-14T03:17:32Z INFO ] Serial port: '/dev/ttyACM0'
+[2026-09-14T03:17:32Z INFO ] Connecting...
+[2026-09-14T03:17:32Z INFO ] Using flash stub
+Chip type:         esp32s3 (revision v0.2)
+Crystal frequency: 40 MHz
+Flash size:        16MB
+Features:          WiFi, BLE, Embedded Flash
+MAC address:       44:1b:f6:fd:ea:cc
+App/part. size:    109,856/16,384,000 bytes, 0.67%
+[00:00:01] [========================================]       1/1       0x0      Verifying... OK!
+[00:00:00] [========================================]       1/1       0x8000   Verifying... OK!
+[00:00:03] [========================================]       3/3       0x10000  Verifying... OK!
+[2026-09-14T03:17:39Z INFO ] Flashing has completed!
+Commands:
+    CTRL+R    Reset chip
+    CTRL+C    Exit
+
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:2
+load:0x3fce2820,len:0x14d0
+load:0x403c8700,len:0xdcc
+load:0x403cb700,len:0x2f54
+entry 0x403c8900
+I (29) boot: ESP-IDF v6.1-beta1-497-g14f663f003e 2nd stage bootloader
+I (30) boot: Multicore bootloader
+I (30) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.4
+I (34) boot.esp32s3: Boot SPI Speed : 40MHz
+I (38) boot.esp32s3: SPI Mode       : DIO
+I (42) boot.esp32s3: SPI Flash Size : 16MB
+I (45) boot: Enabling RNG early entropy source...
+I (50) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (59) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (65) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (72) boot:  2 factory          factory app      00 00 00010000 00fa0000
+I (78) boot: End of partition table
+I (82) esp_image: segment 0: paddr=00010020 vaddr=3c000020 size=02990h ( 10640) map
+I (92) esp_image: segment 1: paddr=000129b8 vaddr=3fc89998 size=009c4h ( 2500) load
+I (97) esp_image: segment 2: paddr=00013384 vaddr=40378000 size=01998h ( 6552) load
+I (106) esp_image: segment 3: paddr=00014d24 vaddr=00000000 size=0b2f4h (45812)
+I (123) esp_image: segment 4: paddr=00020020 vaddr=42010020 size=0acd4h (44244) map
+I (135) boot: Loaded app from partition at offset 0x10000
+I (135) boot: Disabling RNG early entropy source...
+a: boot, run_id=bench-a
+a: zero=2229
+a,bench-a,160,idle
+```
+
+The shakedown facts — [`firmware/NOTES.md`](./firmware/NOTES.md).
+
 ## Status
 
 Done: weeks 1–6 — the Conv1D kernel (optimized in week 6: zero-point

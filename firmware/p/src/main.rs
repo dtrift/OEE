@@ -24,6 +24,11 @@ mod app {
 
     use firmware_p::{format_count, EdgeCounter, DEBOUNCE_MS};
 
+    // The ESP-IDF app descriptor at the image head: the 2nd-stage
+    // bootloader requires it, and espflash >= 4.6 refuses to flash an
+    // image without it.
+    esp_bootloader_esp_idf::esp_app_desc!();
+
     /// Run id of this firmware image.
     const RUN_ID: &str = "bench-p";
 
