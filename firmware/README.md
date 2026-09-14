@@ -2,6 +2,7 @@
 
 Russian version: [README.ru.md](README.ru.md). The shakedown plan (sessions
 S0–S7, the gate): [docs/eng/decompose/firmware.md](../docs/eng/decompose/firmware.md).
+The detailed runbook (criteria, commands, tolerances) — [docs/eng/decompose/firmware-shakedown-runbook.md](../docs/eng/decompose/firmware-shakedown-runbook.md).
 
 ESP32-S3 firmwares for nodes A/P/Q. The bench: 2× ESP32-S3-DevKitC-1 (N16R8)
 — nodes A and Q; 1× ESP32-S3-WROOM-1 N16R8 **CAM** with an on-board OV2640 —
@@ -9,10 +10,11 @@ node P plus the stretch camera (its camera wiring takes some pins). A
 separate workspace, like `fork/microflow`: the target toolchain (Xtensa,
 `espup`) must not affect the host CI of the root workspace.
 
-## Status: implemented, awaiting bench bring-up
+## Status: implemented; bench bring-up started (S0 — 2026-09-14)
 
 The track is implemented in code; the physical bring-up (S0 blinky → S6
-counting) is the remaining human-on-hardware part:
+counting) is the human-on-hardware part, started 2026-09-14. The shakedown
+facts — [NOTES.md](NOTES.md).
 
 - **`firmware-{a,q,p}`** build for `xtensa-esp32s3-none-elf` (esp-hal 1.2,
   the `unstable` driver modules) **and** on the host (an empty stub binary;
@@ -47,6 +49,10 @@ cargo install espup && espup install   # the patched Xtensa toolchain
 . $HOME/export-esp.sh                  # the linker (xtensa-esp-elf-gcc) PATH
 ```
 
+The flasher (host, once): `cargo install espflash`. With asdf-managed Rust
+the binary lands in `~/.asdf/installs/rust/<ver>/bin` — run
+`asdf reshim rust` after installing.
+
 The esp toolchain lives in `~/.rustup/toolchains/esp` (espup's default),
 which the asdf-managed shell rustup does not see. Prepend its `bin` to
 `PATH` — called by full path, esp's cargo still resolves `rustc` from
@@ -74,7 +80,8 @@ the board's wiring (`board` is the single source of truth):
 | DevKitC-1 #2 (servo GPIO11 + INMP441) | Q    | `firmware-q`                                              |
 | CAM board (TCRT5000 on GPIO5)         | P    | `firmware-p`                                              |
 
-The boards differ by their USB serial port — check `/dev/ttyUSB*`:
+The boards differ by their USB serial port — check `/dev/ttyUSB*` (a
+CP2102 bridge) or `/dev/ttyACM*` (a CH343 — see the note below):
 
 ```bash
 espflash flash --port /dev/ttyUSB0 target/xtensa-esp32s3-none-elf/release/firmware-a
@@ -85,6 +92,24 @@ espflash flash --port /dev/ttyUSB2 target/xtensa-esp32s3-none-elf/release/firmwa
 `--monitor` right after flashing shows the console immediately. If a
 board is not seen, hold **BOOT** while plugging it in (the USB download
 mode).
+
+The device name depends on the board's USB-UART bridge: the original
+DevKitC-1 carries a CP2102 → `/dev/ttyUSB*`; clones often replace it with
+a CH343 → `/dev/ttyACM*` (on USB-C revisions the bridge connector is
+labeled "COM", on the v1.0 micro-USB one — "UART"). espflash does not
+care whether it opens a `ttyUSB` or a `ttyACM`. The board's native "USB"
+port also shows up as `/dev/ttyACM*`, but it is useless for monitoring:
+the output goes to the hardware UART. With several boards all on
+`ttyACM*`, tell them apart by the stable by-id names (the CH343 exposes no
+manufacturer string, so udev builds the name from the VID —
+`usb-1a86_USB_Single_Serial_<SN>-if00`; the serial is unique per
+board):
+
+```bash
+ls -l /dev/serial/by-id/
+espflash flash --port /dev/serial/by-id/usb-1a86_USB_Single_Serial_<SN>-if00 \
+    target/xtensa-esp32s3-none-elf/release/firmware-a
+```
 
 What a live image prints over UART (115200) — the first bring-up check:
 
@@ -114,9 +139,11 @@ before the real I2S driver lands (DMA buffers will add on top).
 
 ## Checking the UART output
 
-Plug the board's **UART** micro-USB port (the one by the buttons,
-labeled "UART", through the CP2102 bridge → `/dev/ttyUSB*`) — not the
-OTG port: the firmware does not use the native USB.
+Plug the board's **bridge port** — the connector by the buttons: on v1.0
+a micro-USB labeled "UART", on USB-C revisions and clones a USB-C
+labeled "COM". Not the OTG "USB" port: the firmware does not use the
+native USB. A CP2102 bridge gives `/dev/ttyUSB*`, a CH343 on clones
+`/dev/ttyACM0` (the examples below use `/dev/ttyUSB0`).
 
 ```bash
 # option 1: espflash (already installed for flashing) — sets 115200 and

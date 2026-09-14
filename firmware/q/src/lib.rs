@@ -64,6 +64,20 @@ pub fn i2s_slots_to_f32(slots: &[u32], out: &mut [f32]) -> usize {
     written
 }
 
+/// Fills the window with the deterministic synthetic tap (the S4 stand-in
+/// until the I2S/INMP441 driver lands): a quiet decay
+/// `sin(120·π·t)·(1−t)·0.05`, `t = i/WINDOW`.
+///
+/// Out of the model's training distribution by construction: the pinned
+/// verdict on it is `cracked` (the bench fact, 2026-09-14) — a constant
+/// verdict proves the tap→window→model→UART loop, not a part label.
+pub fn synthetic_tap_window(out: &mut [f32]) {
+    for (i, slot) in out.iter_mut().enumerate() {
+        let t = i as f32 / WINDOW as f32;
+        *slot = libm::sinf(t * 120.0 * core::f32::consts::PI) * (1.0 - t) * 0.05;
+    }
+}
+
 /// Formats a verdict line for the UART bridge / capture log:
 /// `q,<run_id>,<t_ms>,<verdict>`.
 pub fn format_verdict(out: &mut [u8], run_id: &str, t_ms: u32, verdict: usize) -> Option<usize> {
@@ -109,6 +123,18 @@ mod tests {
     fn classify_matches_the_host_node_q() {
         let (probs, verdict) = classify(&good_window::GOOD_WINDOW);
         assert_eq!(verdict, 0, "the good class: probs={probs:?}");
+    }
+
+    /// The synthetic tap is out of the training distribution, so its verdict
+    /// is a pinned convention, not a truth: `cracked`, the bench-observed
+    /// fact (2026-09-14, board #2). Meaningful verdicts arrive with the real
+    /// I2S input (S4); until then the constancy is the loop check.
+    #[test]
+    fn synthetic_tap_verdict_is_pinned() {
+        let mut window = [0.0f32; WINDOW];
+        synthetic_tap_window(&mut window);
+        let (probs, verdict) = classify(&window);
+        assert_eq!(verdict, 1, "the synthetic quiet decay: probs={probs:?}");
     }
 
     /// Review card 20260909120007 (firmware half): the WINDOW constant is

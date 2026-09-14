@@ -39,7 +39,12 @@ mod app {
         uart::{Config as UartConfig, UartTx},
     };
 
-    use firmware_q::{classify, format_verdict, WINDOW};
+    use firmware_q::{classify, format_verdict, synthetic_tap_window, WINDOW};
+
+    // The ESP-IDF app descriptor at the image head: the 2nd-stage
+    // bootloader requires it, and espflash >= 4.6 refuses to flash an
+    // image without it.
+    esp_bootloader_esp_idf::esp_app_desc!();
 
     /// Run id of this firmware image.
     const RUN_ID: &str = "bench-q";
@@ -102,14 +107,13 @@ mod app {
             set_duty(&mut servo, REST_DUTY_PCT);
             t_ms = t_ms.wrapping_add(SETTLE_MS);
 
-            // The window (S4 TODO: I2S INMP441; a deterministic synthetic
-            // tap until then — quiet decay, the good-part family).
+            // The window (S4 TODO: I2S INMP441; the deterministic synthetic
+            // tap until then — `synthetic_tap_window` in the lib: a quiet
+            // decay out of the training distribution, the pinned verdict
+            // is `cracked` — the loop check, not a label).
             // SAFETY: see the WINDOW_BUF declaration above.
             let window = unsafe { &mut *core::ptr::addr_of_mut!(WINDOW_BUF) };
-            for (i, slot) in window.iter_mut().enumerate() {
-                let t = i as f32 / WINDOW as f32;
-                *slot = libm::sinf(t * 120.0 * core::f32::consts::PI) * (1.0 - t) * 0.05;
-            }
+            synthetic_tap_window(window);
 
             let verdict = classify(&window).1;
             if let Some(n) = format_verdict(&mut line, RUN_ID, t_ms, verdict) {

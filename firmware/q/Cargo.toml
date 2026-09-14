@@ -17,3 +17,6 @@ libm = "0.2"
 # The on-target half (see a/Cargo.toml).
 [target.'cfg(target_arch = "xtensa")'.dependencies]
 esp-hal = { version = "1.2", features = ["esp32s3", "unstable"] }
+# The ESP-IDF app descriptor (esp_app_desc! in main.rs): required by the
+# 2nd-stage bootloader; espflash >= 4.6 refuses a descriptor-less image.
+esp-bootloader-esp-idf = { version = "0.6", features = ["esp32s3"] }
