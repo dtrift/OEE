@@ -12,6 +12,7 @@
 > and the stretch camera; the sensors ACS712-20A, INMP441, TCRT5000, a servo
 > tapper, a separate 5 V supply. Bench details and the bring-up procedure —
 > [`firmware/README.md`](../../../firmware/README.md).
+> The detailed execution runbook (wiring, commands, acceptance criteria) — [firmware-shakedown-runbook.md](firmware-shakedown-runbook.md).
 
 > Input: the contracts are already in the repo — `features-cli`
 > (`window_spec`, the ADC→amps calibration, the `capture` schema),

@@ -2,6 +2,7 @@
 
 Russian version: [README.ru.md](README.ru.md). The shakedown plan (sessions
 S0–S7, the gate): [docs/eng/decompose/firmware.md](../docs/eng/decompose/firmware.md).
+The detailed runbook (criteria, commands, tolerances) — [docs/eng/decompose/firmware-shakedown-runbook.md](../docs/eng/decompose/firmware-shakedown-runbook.md).
 
 ESP32-S3 firmwares for nodes A/P/Q. The bench: 2× ESP32-S3-DevKitC-1 (N16R8)
 — nodes A and Q; 1× ESP32-S3-WROOM-1 N16R8 **CAM** with an on-board OV2640 —

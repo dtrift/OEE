@@ -11,6 +11,7 @@
 > stretch-камера; сенсоры ACS712-20A, INMP441, TCRT5000, серво-таппер,
 > отдельный БП 5 В. Подробности стенда и процедура оживления —
 > [`firmware/README.md`](../../../firmware/README.md).
+> Детальный runbook выполнения (подключение, команды, критерии приёмки) — [firmware-shakedown-runbook.md](firmware-shakedown-runbook.md).
 
 > Вход: контракты уже в репо — `features-cli` (`window_spec`, калибровка
 > ADC→амперы, схема `capture`), `nodes::source::SensorSource`

@@ -2,6 +2,7 @@
 
 Английская версия: [README.md](README.md). План шейкдауна (сессии S0–S7,
 гейт): [docs/rus/../eng/decompose/firmware.md](../docs/eng/decompose/firmware.md).
+Детальный runbook (критерии, команды, допуски) — [docs/rus/decompose/firmware-shakedown-runbook.md](../docs/rus/decompose/firmware-shakedown-runbook.md).
 
 Прошивки ESP32-S3 для узлов A/P/Q. Стенд: 2× ESP32-S3-DevKitC-1 (N16R8) —
 узлы A и Q; 1× ESP32-S3-WROOM-1 N16R8 **CAM** с OV2640 на борту — узел P и
