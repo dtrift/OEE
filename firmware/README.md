@@ -99,12 +99,14 @@ labeled "COM", on the v1.0 micro-USB one — "UART"). espflash does not
 care whether it opens a `ttyUSB` or a `ttyACM`. The board's native "USB"
 port also shows up as `/dev/ttyACM*`, but it is useless for monitoring:
 the output goes to the hardware UART. With several boards all on
-`ttyACM*`, tell them apart by the stable by-id names (a CH343 serial is
-unique per board):
+`ttyACM*`, tell them apart by the stable by-id names (the CH343 exposes no
+manufacturer string, so udev builds the name from the VID —
+`usb-1a86_USB_Single_Serial_<SN>-if00`; the serial is unique per
+board):
 
 ```bash
 ls -l /dev/serial/by-id/
-espflash flash --port /dev/serial/by-id/usb-QinHeng_Electronics_USB_Single_Serial_<SN>-if00 \
+espflash flash --port /dev/serial/by-id/usb-1a86_USB_Single_Serial_<SN>-if00 \
     target/xtensa-esp32s3-none-elf/release/firmware-a
 ```
 

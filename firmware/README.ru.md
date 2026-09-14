@@ -99,12 +99,14 @@ espflash flash --port /dev/ttyUSB2 target/xtensa-esp32s3-none-elf/release/firmwa
 «UART»). espflash'у безразлично, `ttyUSB` это или `ttyACM`. Нативный
 «USB»-порт платы тоже даёт `/dev/ttyACM*`, но для монитора бесполезен:
 вывод идёт в аппаратный UART. Если подключено несколько плат и все они
-`ttyACM*`, различайте их по стабильным by-id-именам (серийник CH343
-уникален у каждой платы):
+`ttyACM*`, различайте их по стабильным by-id-именам (CH343 не отдаёт
+строку производителя, udev строит имя от VID —
+`usb-1a86_USB_Single_Serial_<SN>-if00`; серийник уникален у каждой
+платы):
 
 ```bash
 ls -l /dev/serial/by-id/
-espflash flash --port /dev/serial/by-id/usb-QinHeng_Electronics_USB_Single_Serial_<SN>-if00 \
+espflash flash --port /dev/serial/by-id/usb-1a86_USB_Single_Serial_<SN>-if00 \
     target/xtensa-esp32s3-none-elf/release/firmware-a
 ```
 
