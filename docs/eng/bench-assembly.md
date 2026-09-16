@@ -185,8 +185,45 @@ Why exactly this: the top leg's drop at zero current is 2.5 V → GPIO4 sees
 headroom on both sides. Rows 20–22 keep the divider as a self-contained
 block — easier to probe with a multimeter.
 
-A multimeter check before the USB power-up: between the GPIO4 jumper and
-(−) — about 1.2–1.3 V with the machine off (that is the ACS712's "zero").
+A multimeter check (USB plugged in — the board powers the module, the
+machine off): between the GPIO4 jumper and (−) — about 1.2–1.3 V when the
+module runs on 5 V (that is the ACS712's "zero"; on 3V3 it is roughly half
+as much — the `zero` norms are in 4b).
+
+Continuity check (power off): mid↔top ≈ 10 kΩ and mid↔bottom ≈ 10 kΩ
+(0 Ω — a resistor is shorted: both legs landed in the same row);
+bottom↔the board's GND ≈ 0 Ω.
+
+Rows 20–22 are not a dogma: any three neighboring rows work, but on one
+side of the center groove (the groove splits a row in half — a chain
+crossing it is not connected).
+
+A note from the bring-up bench (2026-09-16): the DevKitC-1 clone's 5V pin
+is dead (0.14 V) — the ACS712 module is temporarily powered from 3V3;
+the `zero` norms for that case are in 4b.
+
+### 4b. Diagnosing by `zero=` (one line per boot)
+
+`a: zero=NNN` is printed at firmware startup — the average of 800 ADC
+reads over 0.5 s of rest (`firmware/a/src/main.rs`); the scale: 4095
+counts = 3.1 V (`features-cli/src/calibration.rs`). Bench-refined
+guidelines:
+
+| `zero`             | What GPIO4 sees                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 750–850            | the divider midpoint, the module on 3V3 — the norm (the bring-up bench)                                      |
+| ~1300–1650         | the divider midpoint, the module on 5 V — the norm                                                           |
+| 1900–2200, stable  | OUT past the divider: the tap is not in the middle row, a resistor is shorted, or the bottom is not grounded |
+| ~0                 | the divider top does not arrive: no OUT or no module power                                                   |
+| 4095               | the input is pinned to a supply rail or the pin floats                                                       |
+| jumps boot to boot | a floating contact                                                                                           |
+
+The bench case (2026-09-16): `zero=1966` — 1.49 V, exactly the top of the
+ladder (OUT). While the pin sees OUT past the divider, the firmware
+doubles the amplitudes (`divider = 2.0` in the calibration): a 2 A run
+looks like ~4 A, the model confuses run/overload; idle stays honest —
+the zero is subtracted at startup. The fix is the 4a continuity check
+and the diagnosis table above.
 
 ## 5. Node Q — sound and the tapper (DevKitC-1 #2)
 
@@ -359,6 +396,29 @@ Per the shakedown decomposition sessions
    place, the separate supply); the acoustic verdict on reference parts.
 5. **S6**: node P — a run of N parts, the count = N, bouncing gives no
    repeats.
+
+## 9a. The "it does not work — why" cheat sheet
+
+| Symptom                                    | Cause                                                                                                | Fix                                                          |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| garbage in UART                            | wrong baud / the wrong port                                                                          | 115200, the bridge's port (not OTG)                          |
+| the board won't flash                      | not in boot mode                                                                                     | hold BOOT while plugging in                                  |
+| the servo twitches, the board reboots      | no common GND / no capacitor                                                                         | tie the grounds, add the 470 µF                              |
+| node A's readings drift                    | ACS712 zero drift                                                                                    | start the firmware with the machine off                      |
+| GPIO4 voltage ≈ OUT, not the midpoint      | a resistor shorted (both legs in one row), the tap not in the middle row, or the bottom not grounded | the 4a continuity check; the `zero` diagnosis — 4b           |
+| node A's readings are garbage              | no wire (-) rail → the board's GND                                                                   | check the ground net (section 3)                             |
+| the machine's motor does not spin          | the loop is open: only one wire got into the clamp                                                   | check IP+ and IP− — both in the cut                          |
+| the boot log is visible, but no `a: boot`  | the cable is in the native "USB" port (by-id `usb-Espressif`)                                        | replug into "COM"; the bridge is by-id `usb-1a86*`           |
+| `cat` on the port is silent after a replug | the replug reset the baud to the default (9600)                                                      | `stty ... && cat` as one line, no pause                      |
+| the gauges are empty with node A alive     | the aggregator on the default `--expect a,p,q`                                                       | restart with `--expect a` (the watermark at zero)            |
+| the aggregator died at ~31 s of silence    | a pre-2026-09-15-fix binary                                                                          | rebuild (`PING_AFTER=15 s`); the card in backlog/done        |
+| P overcounts                               | bouncing                                                                                             | the 50 ms debounce is in the firmware already; check the pot |
+
+The step-by-step shakedown order (S0–S7) —
+[`HARDWARE-assembly-guide.md`](./HARDWARE-assembly-guide.md) and
+[`decompose/firmware-shakedown-runbook.md`](./decompose/firmware-shakedown-runbook.md);
+the first bring-up facts (2026-09-14, all three boards alive) —
+`firmware/NOTES.md`.
 
 ## 10. Safety
 
