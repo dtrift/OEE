@@ -362,8 +362,12 @@ impl<W: Write> WindowsCsv<W> {
 
 /// How long an idle read waits before the keepalive check kicks in.
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
-/// Keepalive: 60 s negotiated, ping at half of that.
-const PING_AFTER: Duration = Duration::from_secs(30);
+/// Keepalive: 60 s negotiated, ping at a quarter of that — strictly inside
+/// the bench broker's 30 s idle-cut (`mqtt-min` enforces a fixed read
+/// timeout, not the negotiated keepalive, so a 30 s ping lost the
+/// photo-finish to it: an event-driven node A idles longer than 30 s on
+/// the live bench and the broker dropped the silent connection, 2026-09-15).
+const PING_AFTER: Duration = Duration::from_secs(15);
 
 /// Runs the aggregator loop until every expected node has ended: connect,
 /// subscribe, fold, publish, log. Returns the run summary (with the final
