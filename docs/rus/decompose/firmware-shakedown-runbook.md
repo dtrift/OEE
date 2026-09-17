@@ -9,7 +9,10 @@
 `docs/rus/HARDWARE-assembly-guide.md`. Серийники мостов: узел A —
 `5C94148486`, узел Q — `5C94152266`, узел P (CAM) — `5CCC048683`; порта
 `/dev/ttyUSB*` на этом стенде нет, фактические имена —
-`/dev/serial/by-id/usb-1a86_USB_Serial_<SN>-if00`.
+`/dev/serial/by-id/usb-1a86_USB_Single_Serial_<SN>-if00` (длинная форма — из
+строки продукта моста CH343 «USB Single Serial»; короткая форма
+`usb-1a86_USB_Serial_` здесь не существует — см. факт-лист узла P,
+`decompose/firmware-p-bringup.md`).
 
 | Шаг | Тема                                     | Время  | Есть код?              |
 | --- | ---------------------------------------- | ------ | ---------------------- |
@@ -392,7 +395,7 @@ OEE, дашборд показывает живые метрики.
    `./target/debug/aggregator --mqtt 127.0.0.1:1883 --ideal-cycle-ms 400 --out windows.csv`;
    `./target/debug/oee-dashboard --mqtt 127.0.0.1:1883`.
 2. Терминалы 2–4 — по одному мосту на плату, порта по серийникам:
-   `cat /dev/serial/by-id/usb-1a86_USB_Serial_5C94148486-if00 | cargo run -p firmware-tools --bin uart-bridge -- 127.0.0.1:1883`
+   `cat /dev/serial/by-id/usb-1a86_USB_Single_Serial_5C94148486-if00 | cargo run -p firmware-tools --bin uart-bridge -- 127.0.0.1:1883`
    и две аналогичные команды для серийников `5C94152266` (Q) и
    `5CCC048683` (P). Мост отбрасывает загрузочные строки (закреплено его
    тестами), публикует статусы, вердикты и счёт в `oee/line1/*`, а при
